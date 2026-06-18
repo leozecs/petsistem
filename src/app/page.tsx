@@ -1,5 +1,6 @@
-import { PlatformHome } from "@/components/marketing/platform-home";
+import { LoginScreen } from "@/components/auth/login-screen";
 
-export default function Home() {
-  return <PlatformHome />;
+export default async function Home({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const params = await searchParams;
+  return <LoginScreen error={params.error} />;
 }

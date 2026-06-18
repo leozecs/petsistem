@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { TenantStorefront } from "@/components/marketing/tenant-storefront";
+import { BookingPage } from "@/components/booking/booking-page";
 
 export const metadata: Metadata = {
   title: "Loja demo",
@@ -7,5 +7,10 @@ export const metadata: Metadata = {
 
 export default async function StorefrontPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  return <TenantStorefront slug={slug} />;
+  const name = slug
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+  return <BookingPage storeName={name} />;
 }

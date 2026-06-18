@@ -2,14 +2,19 @@ import {
   Activity,
   CalendarCheck,
   CheckCircle2,
+  ClipboardList,
   ClipboardCheck,
   CreditCard,
+  FileBarChart,
   HeartPulse,
   PawPrint,
+  Settings,
   Scissors,
   ShieldCheck,
   Store,
+  Stethoscope,
   Users,
+  UserCog,
 } from "lucide-react";
 
 export type Role = "admin_master" | "owner" | "attendant" | "veterinarian";
@@ -114,11 +119,49 @@ export const checklistSteps = [
 
 export const navigation = [
   { href: "/app", label: "Dashboard", icon: Activity },
+  { href: "/app/lojas", label: "Lojas", icon: Store },
   { href: "/app/calendarios", label: "Calendários", icon: CalendarCheck },
   { href: "/app/clientes", label: "Clientes", icon: Users },
   { href: "/app/pets", label: "Pets", icon: PawPrint },
+  { href: "/app/funcionarios", label: "Funcionários", icon: UserCog },
+  { href: "/app/veterinarios", label: "Veterinários", icon: Stethoscope },
   { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
+  { href: "/app/relatorios", label: "Relatórios", icon: FileBarChart },
   { href: "/app/assinatura", label: "Assinatura", icon: CreditCard },
+  { href: "/app/configuracoes", label: "Configurações", icon: Settings },
+];
+
+export const stores = [
+  {
+    id: "petgres",
+    name: "Petgres",
+    subdomain: "petgres",
+    status: "Ativa",
+    plan: "Profissional",
+    owner: "Leo Codes",
+  },
+  {
+    id: "petshopabc",
+    name: "Petshop ABC",
+    subdomain: "petshopabc",
+    status: "Atrasada",
+    plan: "Essencial",
+    owner: "Marina Costa",
+  },
+  {
+    id: "meupet",
+    name: "Meu Pet",
+    subdomain: "meupet",
+    status: "Bloqueada",
+    plan: "Profissional",
+    owner: "Gustavo Lima",
+  },
+];
+
+export const reportItems = [
+  { label: "Agenda", value: "126 atendimentos no mês", icon: CalendarCheck },
+  { label: "Operação", value: "89 checklists finalizados", icon: ClipboardList },
+  { label: "Receita", value: "R$ 18,4k em serviços", icon: CreditCard },
 ];
 
 export const publicActions = [
