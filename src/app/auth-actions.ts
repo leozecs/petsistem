@@ -2,24 +2,50 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSession } from "@/lib/auth/session";
 
 export async function signIn(formData: FormData) {
-  const email = String(formData.get("email") ?? "");
+  const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const supabase = await createClient();
 
-  if (!supabase) {
-    redirect("/app");
+  if (!email || !password) {
+    redirect("/login?error=missing-fields");
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const supabase = await createClient();
+  if (!supabase) {
+    redirect("/login?error=supabase-not-configured");
+  }
 
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     redirect("/login?error=invalid-credentials");
   }
 
+  const session = await getSession();
+  if (!session) {
+    redirect("/login?error=profile-missing");
+  }
+
+  if (session.user.globalRole === "admin_master") {
+    redirect("/admin-master");
+  }
+
+  if (!session.activeMembership) {
+    redirect("/login?error=no-tenant");
+  }
+
+  if (session.activeMembership.petshop.status === "blocked") {
+    redirect("/login?error=tenant-blocked");
+  }
+
   redirect("/app");
+}
+
+export async function signOut() {
+  const supabase = await createClient();
+  if (supabase) {
+    await supabase.auth.signOut();
+  }
+  redirect("/login");
 }

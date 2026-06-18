@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,10 +16,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "PETSISTEM",
-    template: "%s | PETSISTEM",
+    default: "PETSISTEM — Plataforma operacional para petshops e clínicas veterinárias",
+    template: "%s · PETSISTEM",
   },
-  description: "SaaS multi-tenant para petshops, banho e tosa e clínicas veterinárias.",
+  description:
+    "Agendamentos, prontuário veterinário, checklist operacional e financeiro em uma plataforma multi-tenant com isolamento total por loja.",
+  applicationName: "PETSISTEM",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0F172A",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

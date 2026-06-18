@@ -1,0 +1,86 @@
+import {
+  Activity,
+  Bell,
+  CalendarCheck,
+  ClipboardCheck,
+  CreditCard,
+  FileBarChart,
+  HeartPulse,
+  PawPrint,
+  Receipt,
+  Settings,
+  ShieldCheck,
+  Store,
+  Stethoscope,
+  Users,
+  UserCog,
+  type LucideIcon,
+} from "lucide-react";
+import type { GlobalRole, MemberRole, SessionContext } from "@/lib/auth/session";
+
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+export const adminMasterNav: NavItem[] = [
+  { href: "/admin-master", label: "Visão geral", icon: Activity },
+  { href: "/admin-master/lojas", label: "Lojas", icon: Store },
+  { href: "/admin-master/planos", label: "Planos", icon: CreditCard },
+  { href: "/admin-master/assinaturas", label: "Assinaturas", icon: FileBarChart },
+  { href: "/admin-master/cobrancas", label: "Cobranças", icon: Bell },
+  { href: "/admin-master/usuarios", label: "Usuários", icon: Users },
+  { href: "/admin-master/auditoria", label: "Auditoria", icon: ShieldCheck },
+  { href: "/admin-master/configuracoes", label: "Configurações", icon: Settings },
+];
+
+export const ownerNav: NavItem[] = [
+  { href: "/app", label: "Dashboard", icon: Activity },
+  { href: "/app/calendarios", label: "Calendários", icon: CalendarCheck },
+  { href: "/app/clientes", label: "Clientes", icon: Users },
+  { href: "/app/pets", label: "Pets", icon: PawPrint },
+  { href: "/app/funcionarios", label: "Funcionários", icon: UserCog },
+  { href: "/app/veterinarios", label: "Veterinários", icon: Stethoscope },
+  { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
+  { href: "/app/financeiro", label: "Financeiro", icon: Receipt },
+  { href: "/app/relatorios", label: "Relatórios", icon: FileBarChart },
+  { href: "/app/assinatura", label: "Assinatura", icon: CreditCard },
+  { href: "/app/configuracoes", label: "Configurações", icon: Settings },
+];
+
+export const attendantNav: NavItem[] = [
+  { href: "/app", label: "Dashboard", icon: Activity },
+  { href: "/app/calendarios", label: "Agenda Banho e Tosa", icon: CalendarCheck },
+  { href: "/app/clientes", label: "Clientes", icon: Users },
+  { href: "/app/pets", label: "Pets", icon: PawPrint },
+  { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
+];
+
+export const veterinarianNav: NavItem[] = [
+  { href: "/app", label: "Dashboard", icon: Activity },
+  { href: "/app/calendarios", label: "Calendário Veterinário", icon: HeartPulse },
+  { href: "/app/pets", label: "Pets", icon: PawPrint },
+];
+
+export function navigationForSession(session: SessionContext): NavItem[] {
+  if (session.user.globalRole === "admin_master") {
+    return adminMasterNav;
+  }
+  const role: MemberRole | undefined = session.activeMembership?.role;
+  if (role === "owner") return ownerNav;
+  if (role === "attendant") return attendantNav;
+  if (role === "veterinarian") return veterinarianNav;
+  return [];
+}
+
+export function navigationForRole(
+  globalRole: GlobalRole,
+  memberRole: MemberRole | null,
+): NavItem[] {
+  if (globalRole === "admin_master") return adminMasterNav;
+  if (memberRole === "owner") return ownerNav;
+  if (memberRole === "attendant") return attendantNav;
+  if (memberRole === "veterinarian") return veterinarianNav;
+  return [];
+}

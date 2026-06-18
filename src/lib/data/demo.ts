@@ -23,6 +23,7 @@ export const tenant = {
   name: "Petgres",
   slug: "petgres",
   subdomain: "petgres",
+  logoUrl: "/brand/petgres-logo.png",
   status: "Ativa",
   plan: "Profissional",
   whatsapp: "(19) 99999-0101",

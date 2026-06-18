@@ -37,7 +37,7 @@ export async function POST() {
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: "Leo Codes",
+        full_name: "Leonardo Rodrigues",
         global_role: "admin_master",
       },
     });
@@ -55,7 +55,7 @@ export async function POST() {
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: "Leo Codes",
+        full_name: "Leonardo Rodrigues",
         global_role: "admin_master",
       },
     });
@@ -72,7 +72,7 @@ export async function POST() {
 
   const { error: profileError } = await supabase.from("users").upsert({
     id: user.id,
-    full_name: "Leo Codes",
+    full_name: "Leonardo Rodrigues",
     email,
     global_role: "admin_master",
   });
