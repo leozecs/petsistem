@@ -14,6 +14,7 @@
 /coverage
 /.verification
 /.playwright-cli
+/.playwright-mcp
 
 # next.js
 /.next/

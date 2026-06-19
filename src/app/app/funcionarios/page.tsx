@@ -1,17 +1,24 @@
-import { UserCog } from "lucide-react";
-import { SectionHeading } from "@/components/app/section-heading";
-import { EmptyState } from "@/components/shared/empty-state";
+import { FuncionariosManager } from "@/components/funcionarios/funcionarios-manager";
+import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
+import { createClient } from "@/lib/supabase/server";
 
-export default function EmployeesPage() {
+export default async function FuncionariosPage() {
+  const { membership } = await requireTenant();
+  const supabase = await createClient();
+
+  const { data } = supabase
+    ? await supabase
+        .from("employees")
+        .select("*")
+        .eq("petshop_id", membership.petshopId)
+        .is("deleted_at", null)
+        .order("name", { ascending: true })
+    : { data: [] };
+
   return (
-    <div>
-      <SectionHeading title="Funcionários" description="CRUD de equipe, cargos, telefones, emails e roles." />
-      <EmptyState
-        icon={UserCog}
-        title="Equipe pronta para conectar ao Supabase"
-        description="A migration ja possui a tabela employees com petshop_id, auditoria e RLS."
-        action="Novo funcionário"
-      />
-    </div>
+    <FuncionariosManager
+      initialEmployees={data ?? []}
+      canManage={hasRole(membership, ["owner"])}
+    />
   );
 }

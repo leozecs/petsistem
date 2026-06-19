@@ -1,82 +1,206 @@
-import { CalendarPlus, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SectionHeading } from "@/components/app/section-heading";
-import { StatusPill } from "@/components/shared/status-pill";
-import { appointments } from "@/lib/data/demo";
+import { redirect } from "next/navigation";
+import { CalendariosView } from "@/components/calendarios/calendarios-view";
+import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
+import { createClient } from "@/lib/supabase/server";
+import { computeAvailability, type AppointmentInput, type ScheduleInput } from "@/lib/calendar/availability";
+import {
+  addMinutes,
+  petshopDateOf,
+  todayPetshopMidnightUtc,
+  utcInstantOfPetshopMidnight,
+} from "@/lib/calendar/time";
+import type { Database } from "@/lib/supabase/database.types";
 
-const hours = ["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"];
+type ServiceArea = Database["public"]["Enums"]["service_area"];
+type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
+type CalendarRow = Database["public"]["Tables"]["calendars"]["Row"];
 
-export default function CalendarsPage() {
+function parseDateParam(input: string | undefined): Date {
+  if (input && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    const [y, m, d] = input.split("-").map(Number);
+    if (y && m && d) return utcInstantOfPetshopMidnight(y, m - 1, d);
+  }
+  return todayPetshopMidnightUtc();
+}
+
+function allowedAreas(role: string): ServiceArea[] {
+  if (role === "owner") return ["grooming", "veterinary"];
+  if (role === "attendant") return ["grooming"];
+  if (role === "veterinarian") return ["veterinary"];
+  return [];
+}
+
+export default async function CalendariosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ area?: string; date?: string; calendar?: string }>;
+}) {
+  const { membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant", "veterinarian"])) {
+    redirect("/app");
+  }
+
+  const params = await searchParams;
+  const areas = allowedAreas(membership.role);
+  if (areas.length === 0) redirect("/app");
+
+  const supabase = await createClient();
+  if (!supabase) redirect("/login?error=supabase-not-configured");
+
+  const [calendarsRes, servicesRes, vetsRes, employeesRes, clientsRes, petsRes] = await Promise.all([
+    supabase
+      .from("calendars")
+      .select("*")
+      .eq("petshop_id", membership.petshopId)
+      .eq("active", true)
+      .in("area", areas),
+    supabase
+      .from("services")
+      .select("*")
+      .eq("petshop_id", membership.petshopId)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .in("area", areas)
+      .order("area")
+      .order("name"),
+    supabase
+      .from("veterinarians")
+      .select("id, name, active")
+      .eq("petshop_id", membership.petshopId)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .order("name"),
+    supabase
+      .from("employees")
+      .select("id, name, active")
+      .eq("petshop_id", membership.petshopId)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .order("name"),
+    supabase
+      .from("clients")
+      .select("id, name, phone")
+      .eq("petshop_id", membership.petshopId)
+      .is("deleted_at", null)
+      .order("name"),
+    supabase
+      .from("pets")
+      .select("id, name, client_id, species")
+      .eq("petshop_id", membership.petshopId)
+      .is("deleted_at", null)
+      .order("name"),
+  ]);
+
+  const calendars: CalendarRow[] = calendarsRes.data ?? [];
+  if (calendars.length === 0) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+        Nenhum calendário ativo encontrado para o seu papel nesta loja.
+      </div>
+    );
+  }
+
+  const services: ServiceRow[] = servicesRes.data ?? [];
+  const activeArea = (areas.includes(params.area as ServiceArea) ? params.area : areas[0]) as ServiceArea;
+  const activeCalendar =
+    calendars.find((c) => c.id === params.calendar && c.area === activeArea) ??
+    calendars.find((c) => c.area === activeArea) ??
+    calendars[0]!;
+
+  // dayStart is the UTC instant of midnight in the petshop TZ, dayEnd is +24h.
+  const dayStart = parseDateParam(params.date);
+  const dayEnd = addMinutes(dayStart, 24 * 60);
+  const dayParts = petshopDateOf(dayStart);
+  const activeDateIso = `${dayParts.year}-${String(dayParts.month0 + 1).padStart(2, "0")}-${String(dayParts.day).padStart(2, "0")}`;
+
+  const [schedulesRes, appointmentsRes] = await Promise.all([
+    supabase
+      .from("schedules")
+      .select("weekday, starts_at, ends_at, active")
+      .eq("petshop_id", membership.petshopId)
+      .eq("calendar_id", activeCalendar.id)
+      .eq("active", true),
+    supabase
+      .from("appointments")
+      .select(
+        "id, starts_at, ends_at, status, tutor_name, notes, pet:pets(name), service:services(name, duration_minutes), veterinarian:veterinarians(name), employee:employees(name)",
+      )
+      .eq("petshop_id", membership.petshopId)
+      .eq("calendar_id", activeCalendar.id)
+      .gte("starts_at", dayStart.toISOString())
+      .lt("starts_at", dayEnd.toISOString())
+      .is("deleted_at", null)
+      .order("starts_at"),
+  ]);
+
+  const schedules: ScheduleInput[] = (schedulesRes.data ?? []).map((s) => ({
+    weekday: s.weekday,
+    starts_at: s.starts_at,
+    ends_at: s.ends_at,
+    active: s.active,
+  }));
+
+  const apptRows = (appointmentsRes.data ?? []) as Array<{
+    id: string;
+    starts_at: string;
+    ends_at: string;
+    status: AppointmentInput["status"];
+    tutor_name: string | null;
+    notes: string | null;
+    pet: { name: string } | null;
+    service: { name: string; duration_minutes: number } | null;
+    veterinarian: { name: string } | null;
+    employee: { name: string } | null;
+  }>;
+
+  const appointments: AppointmentInput[] = apptRows.map((a) => ({
+    id: a.id,
+    starts_at: new Date(a.starts_at),
+    ends_at: new Date(a.ends_at),
+    status: a.status,
+    pet_name: a.pet?.name ?? null,
+    service_name: a.service?.name ?? null,
+    professional_name: a.veterinarian?.name ?? a.employee?.name ?? null,
+    tutor_name: a.tutor_name,
+  }));
+
+  const defaultService = services.find((s) => s.area === activeArea) ?? services[0] ?? null;
+  const defaultSlotMin = defaultService?.duration_minutes ?? 30;
+  const slots = computeAvailability({
+    petshopMidnightUtc: dayStart,
+    schedules,
+    appointments,
+    slotDurationMin: defaultSlotMin,
+    stepMin: 30,
+  });
+
   return (
-    <div>
-      <SectionHeading
-        title="Calendários"
-        description="Visualização operacional das agendas de banho e tosa e veterinária."
-        action={
-          <Button className="rounded-md bg-zinc-950 text-white hover:bg-zinc-800">
-            <CalendarPlus className="size-4" />
-            Criar horário
-          </Button>
-        }
-      />
-
-      <Tabs defaultValue="grooming" className="space-y-6">
-        <TabsList className="rounded-lg bg-white p-1">
-          <TabsTrigger value="grooming" className="rounded-md">Banho e Tosa</TabsTrigger>
-          <TabsTrigger value="vet" className="rounded-md">Veterinária</TabsTrigger>
-        </TabsList>
-        {[
-          ["grooming", "Banho e Tosa"],
-          ["vet", "Veterinária"],
-        ].map(([value, area]) => (
-          <TabsContent key={value} value={value}>
-            <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
-              <CardContent className="p-0">
-                <div className="grid border-b border-zinc-200 md:grid-cols-3">
-                  {["Mensal", "Semanal", "Diária"].map((mode) => (
-                    <button
-                      key={mode}
-                      className="h-12 border-b border-zinc-200 text-sm font-medium text-zinc-600 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0"
-                    >
-                      {mode}
-                    </button>
-                  ))}
-                </div>
-                <div className="grid divide-y divide-zinc-100">
-                  {hours.map((hour) => {
-                    const booked = appointments.find((appointment) => appointment.time.startsWith(hour.slice(0, 2)));
-                    return (
-                      <div key={`${area}-${hour}`} className="grid gap-4 p-4 md:grid-cols-[100px_1fr] md:items-center">
-                        <div className="flex items-center gap-2 text-sm font-medium text-zinc-600">
-                          <Clock className="size-4" />
-                          {hour}
-                        </div>
-                        {booked && booked.area === area ? (
-                          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div>
-                                <p className="font-medium text-zinc-950">{booked.pet} - {booked.service}</p>
-                                <p className="mt-1 text-sm text-zinc-500">{booked.tutor} com {booked.professional}</p>
-                              </div>
-                              <StatusPill tone="neutral">{booked.status}</StatusPill>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-500">
-                            Horário disponível
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
-      </Tabs>
-    </div>
+    <CalendariosView
+      areas={areas}
+      activeArea={activeArea}
+      calendars={calendars}
+      activeCalendarId={activeCalendar.id}
+      activeDateIso={activeDateIso}
+      services={services}
+      veterinarians={vetsRes.data ?? []}
+      employees={employeesRes.data ?? []}
+      clients={clientsRes.data ?? []}
+      pets={petsRes.data ?? []}
+      slots={slots.map((s) => ({
+        startIso: s.start.toISOString(),
+        endIso: s.end.toISOString(),
+        status: s.status,
+        appointment: s.appointment
+          ? {
+              id: s.appointment.id,
+              status: s.appointment.status,
+              pet_name: s.appointment.pet_name ?? null,
+              service_name: s.appointment.service_name ?? null,
+              professional_name: s.appointment.professional_name ?? null,
+              tutor_name: s.appointment.tutor_name ?? null,
+            }
+          : null,
+      }))}
+    />
   );
 }

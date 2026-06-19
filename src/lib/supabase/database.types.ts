@@ -22,6 +22,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
+          duration_range: unknown
           employee_id: string | null
           ends_at: string
           id: string
@@ -45,6 +46,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          duration_range?: unknown
           employee_id?: string | null
           ends_at: string
           id?: string
@@ -68,6 +70,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          duration_range?: unknown
           employee_id?: string | null
           ends_at?: string
           id?: string
