@@ -1,128 +1,83 @@
-import { Activity, CheckCircle2, CircleDollarSign, Clock, FileBarChart } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { KpiCard } from "@/components/shared/kpi-card";
-import { SectionHeading } from "@/components/app/section-heading";
-import { StatusPill } from "@/components/shared/status-pill";
+import { redirect } from "next/navigation";
+import {
+  AssinaturasManager,
+  type SubscriptionRow,
+  type PlanOption,
+} from "@/components/admin-assinaturas/assinaturas-manager";
+import { getSession } from "@/lib/auth/session";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-const kpis = [
-  { label: "MRR", value: "R$ 41,8k", trend: "+R$ 2,1k", icon: CircleDollarSign },
-  { label: "Pagas no mês", value: "32", icon: CheckCircle2 },
-  { label: "A confirmar", value: "5", icon: Clock },
-  { label: "Atrasadas", value: "4", icon: Activity },
-];
-
-const filters = ["Todas", "Pagas", "Pendentes", "Atrasadas", "A confirmar", "Bloqueadas"];
-
-type Status = "Paga" | "Pendente" | "Atrasada" | "A confirmar" | "Bloqueada";
-
-const subscriptions: {
-  shop: string;
-  plan: string;
-  amount: string;
-  due: string;
-  status: Status;
-  proof?: string;
-}[] = [
-  { shop: "Petgres", plan: "Profissional", amount: "R$ 229,00", due: "25/06/2026", status: "Paga" },
-  { shop: "Petshop ABC", plan: "Starter", amount: "R$ 139,00", due: "10/06/2026", status: "Atrasada" },
-  { shop: "Vet & Cia", plan: "Premium", amount: "R$ 349,00", due: "30/06/2026", status: "A confirmar", proof: "comprovante-vetcia.pdf" },
-  { shop: "Meu Pet", plan: "Profissional", amount: "R$ 229,00", due: "02/06/2026", status: "Bloqueada" },
-];
-
-function toneFor(status: Status) {
-  if (status === "Paga") return "success" as const;
-  if (status === "Atrasada" || status === "Bloqueada") return "danger" as const;
-  if (status === "A confirmar") return "warning" as const;
-  return "neutral" as const;
-}
-
-export default function AdminAssinaturasPage() {
-  return (
-    <div>
-      <SectionHeading
-        title="Assinaturas"
-        description="Acompanhe pagamentos, confirme Pix manuais e gerencie status financeiro das lojas."
-        action={
-          <Button variant="outline" className="rounded-md border-zinc-300 bg-white">
-            <FileBarChart className="size-4" />
-            Exportar
-          </Button>
-        }
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <KpiCard key={kpi.label} {...kpi} />
-        ))}
+export default async function AdminAssinaturasPage() {
+  const session = await getSession();
+  if (!session || session.user.globalRole !== "admin_master") {
+    redirect("/login?error=not-authorized");
+  }
+  const admin = createAdminClient();
+  if (!admin) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+        Service role do Supabase não configurado.
       </div>
+    );
+  }
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {filters.map((filter, idx) => (
-          <Button
-            key={filter}
-            variant={idx === 0 ? "default" : "outline"}
-            size="sm"
-            className={
-              idx === 0
-                ? "rounded-md bg-zinc-950 text-white hover:bg-zinc-800"
-                : "rounded-md border-zinc-300 bg-white"
-            }
-          >
-            {filter}
-          </Button>
-        ))}
-      </div>
+  const [shopsRes, subsRes, plansRes] = await Promise.all([
+    admin
+      .from("petshops")
+      .select("id, name, subdomain, plan_id, plan_name")
+      .is("deleted_at", null)
+      .order("name"),
+    admin
+      .from("subscriptions")
+      .select("id, petshop_id, plan_name, amount_cents, due_date, status, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("plans")
+      .select("id, name, price_cents")
+      .eq("active", true)
+      .order("price_cents"),
+  ]);
 
-      <Card className="mt-6 rounded-lg border-zinc-200 bg-white shadow-none">
-        <CardHeader>
-          <CardTitle className="text-base">Assinaturas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table className="min-w-[840px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Loja</TableHead>
-                  <TableHead>Plano</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Comprovante</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {subscriptions.map((sub) => (
-                  <TableRow key={sub.shop}>
-                    <TableCell className="font-medium">{sub.shop}</TableCell>
-                    <TableCell>{sub.plan}</TableCell>
-                    <TableCell>{sub.amount}</TableCell>
-                    <TableCell>{sub.due}</TableCell>
-                    <TableCell>
-                      <StatusPill tone={toneFor(sub.status)}>{sub.status}</StatusPill>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono text-zinc-600">{sub.proof ?? "—"}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {sub.status === "A confirmar" ? (
-                          <Button size="sm" className="rounded-md bg-zinc-950 text-white hover:bg-zinc-800">
-                            Confirmar pagamento
-                          </Button>
-                        ) : null}
-                        <Button variant="outline" size="sm" className="rounded-md border-zinc-300 bg-white">
-                          Ver detalhes
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  // Latest subscription per petshop
+  const latestByShop = new Map<
+    string,
+    {
+      id: string;
+      plan_name: string;
+      amount_cents: number;
+      due_date: string;
+      status: string;
+    }
+  >();
+  for (const s of subsRes.data ?? []) {
+    if (!latestByShop.has(s.petshop_id)) {
+      latestByShop.set(s.petshop_id, {
+        id: s.id,
+        plan_name: s.plan_name,
+        amount_cents: s.amount_cents,
+        due_date: s.due_date,
+        status: s.status,
+      });
+    }
+  }
+
+  const rows: SubscriptionRow[] = (shopsRes.data ?? []).map((p) => {
+    const sub = latestByShop.get(p.id);
+    return {
+      subscriptionId: sub?.id ?? null,
+      petshopId: p.id,
+      petshopName: p.name,
+      subdomain: p.subdomain,
+      planId: p.plan_id,
+      planName: p.plan_name,
+      amountCents: sub?.amount_cents ?? null,
+      dueDate: sub?.due_date ?? null,
+      status: (sub?.status as SubscriptionRow["status"]) ?? "no_subscription",
+    };
+  });
+
+  const plans: PlanOption[] = plansRes.data ?? [];
+
+  return <AssinaturasManager subscriptions={rows} plans={plans} />;
 }

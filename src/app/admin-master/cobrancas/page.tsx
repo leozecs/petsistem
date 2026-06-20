@@ -1,102 +1,99 @@
-import { Bell, MessageCircle, Send } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { KpiCard } from "@/components/shared/kpi-card";
-import { SectionHeading } from "@/components/app/section-heading";
-import { StatusPill } from "@/components/shared/status-pill";
+import { redirect } from "next/navigation";
+import {
+  CobrancasManager,
+  type PaymentRow,
+  type PlatformPix,
+} from "@/components/admin-cobrancas/cobrancas-manager";
+import { getSession } from "@/lib/auth/session";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-const kpis = [
-  { label: "A cobrar agora", value: "9", icon: Bell },
-  { label: "Cobradas no mês", value: "21", icon: Send },
-  { label: "Sem resposta", value: "3", icon: MessageCircle },
-];
-
-const billings = [
-  { shop: "Petshop ABC", owner: "Marina Costa", phone: "5519988880011", amount: "R$ 139,00", due: "10/06/2026", lastSent: "Nunca" },
-  { shop: "Meu Pet", owner: "Gustavo Lima", phone: "5519977770202", amount: "R$ 229,00", due: "02/06/2026", lastSent: "12/06" },
-  { shop: "Vet & Cia", owner: "Paula Ribeiro", phone: "5519966663030", amount: "R$ 349,00", due: "30/06/2026", lastSent: "—" },
-];
-
-function buildWaLink(phone: string, shop: string, amount: string, due: string) {
-  const text = encodeURIComponent(
-    [
-      "Olá!",
-      "",
-      "Sua mensalidade do PETSISTEM encontra-se disponível.",
-      "",
-      `Loja: ${shop}`,
-      `Valor: ${amount}`,
-      `Vencimento: ${due}`,
-      "",
-      'Após o pagamento, acesse sua área de assinatura e clique em "Pago!" para análise e confirmação.',
-    ].join("\n"),
-  );
-  return `https://wa.me/${phone}?text=${text}`;
-}
-
-export default function AdminCobrancasPage() {
-  return (
-    <div>
-      <SectionHeading
-        title="Cobranças"
-        description="Envie cobranças via WhatsApp com a mensagem padrão do PETSISTEM."
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {kpis.map((kpi) => (
-          <KpiCard key={kpi.label} {...kpi} />
-        ))}
+export default async function AdminCobrancasPage() {
+  const session = await getSession();
+  if (!session || session.user.globalRole !== "admin_master") {
+    redirect("/login?error=not-authorized");
+  }
+  const admin = createAdminClient();
+  if (!admin) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+        Service role do Supabase não configurado.
       </div>
+    );
+  }
 
-      <Card className="mt-6 rounded-lg border-zinc-200 bg-white shadow-none">
-        <CardHeader>
-          <CardTitle className="text-base">Clientes a cobrar</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table className="min-w-[840px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Loja</TableHead>
-                  <TableHead>Dono</TableHead>
-                  <TableHead>WhatsApp</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Última cobrança</TableHead>
-                  <TableHead className="text-right">Ação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {billings.map((b) => (
-                  <TableRow key={b.shop}>
-                    <TableCell className="font-medium">{b.shop}</TableCell>
-                    <TableCell>{b.owner}</TableCell>
-                    <TableCell className="font-mono text-xs text-zinc-600">+{b.phone}</TableCell>
-                    <TableCell>{b.amount}</TableCell>
-                    <TableCell>{b.due}</TableCell>
-                    <TableCell>
-                      <StatusPill tone={b.lastSent === "Nunca" || b.lastSent === "—" ? "warning" : "neutral"}>
-                        {b.lastSent}
-                      </StatusPill>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <a
-                        href={buildWaLink(b.phone, b.shop, b.amount, b.due)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-                      >
-                        <MessageCircle className="size-4" />
-                        COBRAR
-                      </a>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const [payRes, subRes, shopRes, pixRes] = await Promise.all([
+    admin
+      .from("payments")
+      .select("id, subscription_id, petshop_id, amount_cents, paid_at, status, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(200),
+    admin
+      .from("subscriptions")
+      .select("id, petshop_id, amount_cents, due_date, status")
+      .is("deleted_at", null),
+    admin
+      .from("petshops")
+      .select("id, name, subdomain")
+      .is("deleted_at", null),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (admin as any)
+      .from("platform_settings")
+      .select("pix_key, pix_holder_name")
+      .eq("id", 1)
+      .maybeSingle() as Promise<{
+        data: { pix_key: string | null; pix_holder_name: string | null } | null;
+      }>,
+  ]);
+
+  const shopMap = new Map((shopRes.data ?? []).map((p) => [p.id, p]));
+  const subMap = new Map((subRes.data ?? []).map((s) => [s.id, s]));
+
+  type RawPayment = {
+    id: string;
+    subscription_id: string;
+    petshop_id: string;
+    amount_cents: number;
+    paid_at: string | null;
+    status: string;
+  };
+
+  const payments: PaymentRow[] = ((payRes.data ?? []) as RawPayment[]).map((p) => {
+    const shop = shopMap.get(p.petshop_id);
+    const sub = subMap.get(p.subscription_id);
+    return {
+      paymentId: p.id,
+      subscriptionId: p.subscription_id,
+      petshopName: shop?.name ?? "—",
+      subdomain: shop?.subdomain ?? "—",
+      amountCents: p.amount_cents,
+      dueDate: sub?.due_date ?? "",
+      paidAt: p.paid_at,
+      status: p.status,
+    };
+  });
+
+  // Add "no_payment" virtual rows: subscriptions that don't have a payment yet
+  const subsWithPayment = new Set(payments.map((p) => p.subscriptionId));
+  for (const s of subRes.data ?? []) {
+    if (subsWithPayment.has(s.id)) continue;
+    const shop = shopMap.get(s.petshop_id);
+    payments.push({
+      paymentId: null,
+      subscriptionId: s.id,
+      petshopName: shop?.name ?? "—",
+      subdomain: shop?.subdomain ?? "—",
+      amountCents: s.amount_cents,
+      dueDate: s.due_date,
+      paidAt: null,
+      status: "no_payment",
+    });
+  }
+
+  const pix: PlatformPix = {
+    pixKey: pixRes.data?.pix_key ?? null,
+    pixHolderName: pixRes.data?.pix_holder_name ?? null,
+  };
+
+  return <CobrancasManager payments={payments} pix={pix} />;
 }

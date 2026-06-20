@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
+import { getPlanLimits } from "@/lib/billing/plan-limits";
 
 export type EmployeeFormState = {
   ok: boolean;
@@ -63,6 +64,16 @@ export async function createEmployeeWithLogin(
       if (key && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
     return { ok: false, fieldErrors };
+  }
+
+  // Plan limit: count active memberships against plan.max_users before
+  // burning an Auth user slot (criar auth + rollback é caro).
+  const limits = await getPlanLimits(membership.petshopId);
+  if (limits && limits.currentUsers >= limits.maxUsers) {
+    return {
+      ok: false,
+      error: `Limite de ${limits.maxUsers} usuários atingido no plano ${limits.planName}. Faça upgrade do plano para adicionar mais.`,
+    };
   }
 
   const admin = createAdminClient();

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
+import { getPlanLimits } from "@/lib/billing/plan-limits";
 
 export type VetFormState = {
   ok: boolean;
@@ -61,6 +62,22 @@ export async function createVeterinarianWithLogin(
       if (key && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
     return { ok: false, fieldErrors };
+  }
+
+  // Plan enforcement: bloqueia se o plano não permite veterinário OU se já
+  // bateu o limite de usuários.
+  const limits = await getPlanLimits(membership.petshopId);
+  if (limits && !limits.allowsVeterinarian) {
+    return {
+      ok: false,
+      error: `O plano ${limits.planName} não permite cadastrar veterinários. Faça upgrade para Profissional ou Premium.`,
+    };
+  }
+  if (limits && limits.currentUsers >= limits.maxUsers) {
+    return {
+      ok: false,
+      error: `Limite de ${limits.maxUsers} usuários atingido no plano ${limits.planName}. Faça upgrade para adicionar mais.`,
+    };
   }
 
   const admin = createAdminClient();
