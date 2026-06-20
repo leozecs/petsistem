@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { signIn } from "@/app/auth-actions";
 import { PetsistemLogo } from "@/components/brand/logo";
+import { LoginSubmitButton } from "@/components/auth/login-submit-button";
 
 const errorMessages: Record<string, string> = {
   "invalid-credentials": "Email ou senha invalidos.",
@@ -72,15 +71,7 @@ export function LoginScreen({ error }: { error?: string }) {
                     required
                   />
                 </div>
-                <button
-                  type="submit"
-                  className={cn(
-                    buttonVariants(),
-                    "h-11 w-full rounded-md bg-zinc-950 text-white hover:bg-zinc-800",
-                  )}
-                >
-                  Entrar
-                </button>
+                <LoginSubmitButton />
               </form>
               <div className="mt-5 rounded-lg bg-zinc-50 p-4 text-sm leading-6 text-zinc-600">
                 Ao configurar o Supabase, a rota <code className="font-mono text-zinc-950">/api/setup/admin-master</code>{" "}

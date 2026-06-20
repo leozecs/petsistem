@@ -2,13 +2,13 @@ import { redirect } from "next/navigation";
 import { CalendariosView } from "@/components/calendarios/calendarios-view";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { createClient } from "@/lib/supabase/server";
-import { computeAvailability, type AppointmentInput, type ScheduleInput } from "@/lib/calendar/availability";
 import {
   addMinutes,
   petshopDateOf,
   todayPetshopMidnightUtc,
   utcInstantOfPetshopMidnight,
 } from "@/lib/calendar/time";
+import type { AppointmentInput, ScheduleInput } from "@/lib/calendar/availability";
 import type { Database } from "@/lib/supabase/database.types";
 
 type ServiceArea = Database["public"]["Enums"]["service_area"];
@@ -28,6 +28,10 @@ function allowedAreas(role: string): ServiceArea[] {
   if (role === "attendant") return ["grooming"];
   if (role === "veterinarian") return ["veterinary"];
   return [];
+}
+
+function isoDateOnly(year: number, month0: number, day: number): string {
+  return `${year}-${String(month0 + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export default async function CalendariosPage({
@@ -107,11 +111,16 @@ export default async function CalendariosPage({
     calendars.find((c) => c.area === activeArea) ??
     calendars[0]!;
 
-  // dayStart is the UTC instant of midnight in the petshop TZ, dayEnd is +24h.
-  const dayStart = parseDateParam(params.date);
-  const dayEnd = addMinutes(dayStart, 24 * 60);
-  const dayParts = petshopDateOf(dayStart);
-  const activeDateIso = `${dayParts.year}-${String(dayParts.month0 + 1).padStart(2, "0")}-${String(dayParts.day).padStart(2, "0")}`;
+  const selectedDayUtc = parseDateParam(params.date);
+  const selectedParts = petshopDateOf(selectedDayUtc);
+  const activeDateIso = isoDateOnly(selectedParts.year, selectedParts.month0, selectedParts.day);
+
+  // Fetch a generous range around the visible month so adjacent-month cells in
+  // the grid can still show badges if they have appointments.
+  const monthStart = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0, 1);
+  const monthEnd = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0 + 1, 1);
+  const fetchStart = addMinutes(monthStart, -7 * 24 * 60);
+  const fetchEnd = addMinutes(monthEnd, 14 * 24 * 60);
 
   const [schedulesRes, appointmentsRes] = await Promise.all([
     supabase
@@ -127,8 +136,8 @@ export default async function CalendariosPage({
       )
       .eq("petshop_id", membership.petshopId)
       .eq("calendar_id", activeCalendar.id)
-      .gte("starts_at", dayStart.toISOString())
-      .lt("starts_at", dayEnd.toISOString())
+      .gte("starts_at", fetchStart.toISOString())
+      .lt("starts_at", fetchEnd.toISOString())
       .is("deleted_at", null)
       .order("starts_at"),
   ]);
@@ -140,7 +149,7 @@ export default async function CalendariosPage({
     active: s.active,
   }));
 
-  const apptRows = (appointmentsRes.data ?? []) as Array<{
+  type RawAppt = {
     id: string;
     starts_at: string;
     ends_at: string;
@@ -151,28 +160,37 @@ export default async function CalendariosPage({
     service: { name: string; duration_minutes: number } | null;
     veterinarian: { name: string } | null;
     employee: { name: string } | null;
-  }>;
+  };
+  const apptRows = (appointmentsRes.data ?? []) as RawAppt[];
 
-  const appointments: AppointmentInput[] = apptRows.map((a) => ({
-    id: a.id,
-    starts_at: new Date(a.starts_at),
-    ends_at: new Date(a.ends_at),
-    status: a.status,
-    pet_name: a.pet?.name ?? null,
-    service_name: a.service?.name ?? null,
-    professional_name: a.veterinarian?.name ?? a.employee?.name ?? null,
-    tutor_name: a.tutor_name,
-  }));
-
-  const defaultService = services.find((s) => s.area === activeArea) ?? services[0] ?? null;
-  const defaultSlotMin = defaultService?.duration_minutes ?? 30;
-  const slots = computeAvailability({
-    petshopMidnightUtc: dayStart,
-    schedules,
-    appointments,
-    slotDurationMin: defaultSlotMin,
-    stepMin: 30,
-  });
+  const appointmentsByDay: Record<
+    string,
+    Array<{
+      id: string;
+      startIso: string;
+      endIso: string;
+      status: AppointmentInput["status"];
+      pet_name: string | null;
+      service_name: string | null;
+      professional_name: string | null;
+      tutor_name: string | null;
+    }>
+  > = {};
+  for (const a of apptRows) {
+    const startUtc = new Date(a.starts_at);
+    const parts = petshopDateOf(startUtc);
+    const key = isoDateOnly(parts.year, parts.month0, parts.day);
+    (appointmentsByDay[key] ??= []).push({
+      id: a.id,
+      startIso: a.starts_at,
+      endIso: a.ends_at,
+      status: a.status,
+      pet_name: a.pet?.name ?? null,
+      service_name: a.service?.name ?? null,
+      professional_name: a.veterinarian?.name ?? a.employee?.name ?? null,
+      tutor_name: a.tutor_name,
+    });
+  }
 
   return (
     <CalendariosView
@@ -181,26 +199,15 @@ export default async function CalendariosPage({
       calendars={calendars}
       activeCalendarId={activeCalendar.id}
       activeDateIso={activeDateIso}
+      visibleYear={selectedParts.year}
+      visibleMonth0={selectedParts.month0}
       services={services}
       veterinarians={vetsRes.data ?? []}
       employees={employeesRes.data ?? []}
       clients={clientsRes.data ?? []}
       pets={petsRes.data ?? []}
-      slots={slots.map((s) => ({
-        startIso: s.start.toISOString(),
-        endIso: s.end.toISOString(),
-        status: s.status,
-        appointment: s.appointment
-          ? {
-              id: s.appointment.id,
-              status: s.appointment.status,
-              pet_name: s.appointment.pet_name ?? null,
-              service_name: s.appointment.service_name ?? null,
-              professional_name: s.appointment.professional_name ?? null,
-              tutor_name: s.appointment.tutor_name ?? null,
-            }
-          : null,
-      }))}
+      schedules={schedules}
+      appointmentsByDay={appointmentsByDay}
     />
   );
 }

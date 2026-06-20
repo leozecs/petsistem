@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { motion } from "motion/react";
 import { Bell, LogOut, Menu, ShieldCheck, Store } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,20 @@ import type { SessionContext } from "@/lib/auth/session";
 import { PetsistemLogo } from "@/components/brand/logo";
 
 type ShellVariant = "admin" | "tenant";
+
+function PageTransition({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  return (
+    <motion.div
+      key={pathname}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 type ActivePetshop = NonNullable<SessionContext["activeMembership"]>["petshop"];
 
 const knownPetshopLogos: Record<string, string> = {
@@ -239,7 +254,9 @@ export function AppShell({
             </div>
           </header>
 
-          <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+          <PageTransition>
+            <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+          </PageTransition>
         </div>
       </div>
     </TooltipProvider>
