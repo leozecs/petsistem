@@ -36,14 +36,11 @@ export default async function AdminCobrancasPage() {
       .from("petshops")
       .select("id, name, subdomain")
       .is("deleted_at", null),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (admin as any)
+    admin
       .from("platform_settings")
       .select("pix_key, pix_holder_name")
       .eq("id", 1)
-      .maybeSingle() as Promise<{
-        data: { pix_key: string | null; pix_holder_name: string | null } | null;
-      }>,
+      .maybeSingle(),
   ]);
 
   const shopMap = new Map((shopRes.data ?? []).map((p) => [p.id, p]));

@@ -25,14 +25,11 @@ export default async function AdminConfigPage() {
       .select("full_name, email")
       .eq("id", session.user.id)
       .maybeSingle(),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (admin as any)
+    admin
       .from("platform_settings")
       .select("pix_key, pix_holder_name")
       .eq("id", 1)
-      .maybeSingle() as Promise<{
-        data: { pix_key: string | null; pix_holder_name: string | null } | null;
-      }>,
+      .maybeSingle(),
   ]);
 
   return (

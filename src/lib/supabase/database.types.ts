@@ -1577,6 +1577,38 @@ export type Database = {
           },
         ]
       }
+      platform_settings: {
+        Row: {
+          id: number
+          pix_holder_name: string | null
+          pix_key: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          pix_holder_name?: string | null
+          pix_key?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          pix_holder_name?: string | null
+          pix_key?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revenues: {
         Row: {
           amount_cents: number

@@ -94,10 +94,7 @@ export async function updatePlatformPix(formData: FormData): Promise<ActionState
   const admin = createAdminClient();
   if (!admin) return { ok: false, error: "Service role indisponível." };
 
-  // `platform_settings` é uma tabela criada por migration manual; types do
-  // Supabase ainda não a refletem até `generate_typescript_types` rodar.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (admin as any)
+  const { error } = await admin
     .from("platform_settings")
     .update({
       pix_key: parsed.data.pix_key || null,
