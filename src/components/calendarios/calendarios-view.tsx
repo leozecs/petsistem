@@ -750,9 +750,13 @@ export function CalendariosView({
                 id="starts_at"
                 options={availableSlots.map((slot) => {
                   const iso = slot.start.toISOString();
+                  // Always render slots as 30-min anchors regardless of service
+                  // duration. The engine already validated that the full service
+                  // duration fits without overlap; the user picks a start anchor.
+                  const anchorEnd = new Date(slot.start.getTime() + 30 * 60_000);
                   return {
                     id: iso,
-                    label: `${formatHHmm(iso)} – ${formatHHmm(slot.end.toISOString())}`,
+                    label: `${formatHHmm(iso)} às ${formatHHmm(anchorEnd.toISOString())}`,
                   };
                 })}
                 value={form.watch("starts_at") ?? ""}
