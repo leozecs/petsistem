@@ -13,8 +13,11 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronRight as ChevronAdvance,
   PenLine,
   Plus,
+  Undo2,
+  UserX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,7 +36,14 @@ import {
   createClientInline,
   createPetInline,
   saveAppointment,
+  updateAppointmentStatus,
 } from "@/app/app/calendarios/actions";
+import {
+  forwardLabel,
+  isTerminal,
+  nextStatus,
+  prevStatus,
+} from "@/lib/calendar/status";
 import { Combobox } from "@/components/ui/combobox";
 import {
   computeAvailability,
@@ -458,6 +468,47 @@ export function CalendariosView({
     });
   }
 
+  function handleAdvance(apptId: string, current: AppointmentStatus) {
+    const target = nextStatus(current);
+    if (!target) return;
+    startTransition(async () => {
+      const result = await updateAppointmentStatus(apptId, target);
+      if (result.ok) {
+        toast.success("Status atualizado");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao atualizar status");
+      }
+    });
+  }
+
+  function handleUndo(apptId: string, current: AppointmentStatus) {
+    const target = prevStatus(current);
+    if (!target) return;
+    startTransition(async () => {
+      const result = await updateAppointmentStatus(apptId, target);
+      if (result.ok) {
+        toast.success("Status revertido");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao reverter status");
+      }
+    });
+  }
+
+  function handleNoShow(apptId: string) {
+    if (!confirm("Marcar como não compareceu?")) return;
+    startTransition(async () => {
+      const result = await updateAppointmentStatus(apptId, "no_show");
+      if (result.ok) {
+        toast.success("Marcado como não compareceu");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao marcar");
+      }
+    });
+  }
+
   const showAreaTabs = areas.length > 1;
   const hasMultipleCalendarsForArea =
     calendars.filter((c) => c.area === activeArea).length > 1;
@@ -680,19 +731,55 @@ export function CalendariosView({
                             {a.professional_name ? ` · ${a.professional_name}` : ""}
                           </p>
                         </div>
-                        {a.status !== "cancelled" &&
-                        a.status !== "finished" &&
-                        a.status !== "no_show" ? (
-                          <button
-                            onClick={() => handleCancel(a.id)}
-                            disabled={pending}
-                            className="shrink-0 rounded-md border border-zinc-200 p-1.5 text-zinc-500 hover:bg-rose-50 hover:text-rose-700"
-                            aria-label="Cancelar"
-                          >
-                            <Ban className="size-3.5" />
-                          </button>
-                        ) : null}
                       </div>
+                      {isTerminal(a.status) ? null : (
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {(() => {
+                            const advanceLabel = forwardLabel(a.status);
+                            return advanceLabel ? (
+                              <button
+                                onClick={() => handleAdvance(a.id, a.status)}
+                                disabled={pending}
+                                className="inline-flex items-center gap-1 rounded-md bg-zinc-950 px-2 py-1 text-[0.6875rem] font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60"
+                              >
+                                <ChevronAdvance className="size-3" />
+                                {advanceLabel}
+                              </button>
+                            ) : null;
+                          })()}
+                          {prevStatus(a.status) ? (
+                            <button
+                              onClick={() => handleUndo(a.id, a.status)}
+                              disabled={pending}
+                              className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                              aria-label="Voltar status"
+                            >
+                              <Undo2 className="size-3" />
+                              Voltar
+                            </button>
+                          ) : null}
+                          {a.status !== "finished" ? (
+                            <button
+                              onClick={() => handleNoShow(a.id)}
+                              disabled={pending}
+                              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-amber-800 transition hover:bg-amber-50 disabled:opacity-60"
+                            >
+                              <UserX className="size-3" />
+                              Não veio
+                            </button>
+                          ) : null}
+                          {a.status !== "finished" ? (
+                            <button
+                              onClick={() => handleCancel(a.id)}
+                              disabled={pending}
+                              className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
+                            >
+                              <Ban className="size-3" />
+                              Cancelar
+                            </button>
+                          ) : null}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { petshopMinutesIntoDay, petshopWeekday, petshopDateOf, utcInstantOfPetshopMidnight, parseTimeOfDayToMinutes } from "@/lib/calendar/time";
 import { effectiveSchedules } from "@/lib/calendar/availability";
+import { canTransition } from "@/lib/calendar/status";
 import type { Database } from "@/lib/supabase/database.types";
 
 type ServiceArea = Database["public"]["Enums"]["service_area"];
@@ -254,9 +255,12 @@ export async function saveAppointment(
       .eq("petshop_id", membership.petshopId);
     if (error) return { ok: false, error: friendlyError(error.message) };
   } else {
+    // New appointments start at `confirmed` — counter-staff bookings are valid
+    // out of the box; no separate "confirm" gate. Drag back to `pending` is not
+    // exposed in the UI but the enum still supports it for legacy rows.
     const { error } = await supabase
       .from("appointments")
-      .insert({ ...payload, status: "pending", created_by: session.user.id });
+      .insert({ ...payload, status: "confirmed", created_by: session.user.id });
     if (error) return { ok: false, error: friendlyError(error.message) };
   }
 
@@ -283,13 +287,13 @@ export async function updateAppointmentStatus(
   const supabase = await createClient();
   if (!supabase) return { ok: false, error: "Supabase indisponível." };
 
-  // Defense-in-depth: load the appointment's calendar.area and confirm it is in
-  // the caller's allowed areas. Without this, an attendant could cancel any
-  // veterinary appointment in their tenant just by knowing the UUID.
+  // Defense-in-depth: load the appointment's calendar.area + current status.
+  // The area check stops cross-area RBAC bypass; the status check enforces the
+  // linear-with-undo flow (rejects nonsense transitions like finished→confirmed).
   const allowed = allowedAreasForRole(membership.role);
   const { data: appt, error: lookupErr } = await supabase
     .from("appointments")
-    .select("id, calendar:calendars!inner(area)")
+    .select("id, status, calendar:calendars!inner(area)")
     .eq("id", parsed.data.id)
     .eq("petshop_id", membership.petshopId)
     .is("deleted_at", null)
@@ -299,6 +303,9 @@ export async function updateAppointmentStatus(
   const apptArea = (appt.calendar as { area: ServiceArea } | null)?.area;
   if (!apptArea || !allowed.includes(apptArea)) {
     return { ok: false, error: "Você não pode alterar esse agendamento." };
+  }
+  if (!canTransition(appt.status, parsed.data.status)) {
+    return { ok: false, error: "Transição de status não permitida." };
   }
 
   const { error } = await supabase
