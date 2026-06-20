@@ -95,6 +95,7 @@ export function ClientesPetsManager({
     clientId: string;
     clientName: string;
   }>({ open: false, editing: null, clientId: "", clientName: "" });
+  const [confirmDelete, setConfirmDelete] = useState<ClientWithPets | null>(null);
 
   const clientForm = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
@@ -232,16 +233,31 @@ export function ClientesPetsManager({
     });
   }
 
-  function handleDeleteClient(c: ClientWithPets) {
-    if (c.pets.length > 0) {
-      toast.error(`Remova os ${c.pets.length} pet(s) deste tutor antes de excluí-lo.`);
+  function requestDeleteClient(c: ClientWithPets) {
+    // Tutors with no pets skip the modal — a single browser confirm is enough.
+    // Tutors with pets get a dedicated dialog that names the cascade so the
+    // operator can't blow away pet history by accident.
+    if (c.pets.length === 0) {
+      if (!confirm(`Excluir tutor ${c.name}?`)) return;
+      runDeleteClient(c);
       return;
     }
-    if (!confirm(`Excluir tutor ${c.name}?`)) return;
+    setConfirmDelete(c);
+  }
+
+  function runDeleteClient(c: ClientWithPets) {
     startTransition(async () => {
       const result = await deleteClient(c.id);
-      if (result.ok) toast.success("Tutor excluído");
-      else toast.error(result.error ?? "Erro ao excluir tutor");
+      if (result.ok) {
+        toast.success(
+          c.pets.length > 0
+            ? `Tutor e ${c.pets.length} pet${c.pets.length === 1 ? "" : "s"} excluídos`
+            : "Tutor excluído",
+        );
+        setConfirmDelete(null);
+      } else {
+        toast.error(result.error ?? "Erro ao excluir tutor");
+      }
     });
   }
 
@@ -358,7 +374,7 @@ export function ClientesPetsManager({
                         variant="outline"
                         size="sm"
                         className="rounded-md border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
-                        onClick={() => handleDeleteClient(c)}
+                        onClick={() => requestDeleteClient(c)}
                         disabled={pending}
                       >
                         <Trash2 className="size-4" />
@@ -524,6 +540,69 @@ export function ClientesPetsManager({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cascade-delete confirmation */}
+      <Dialog
+        open={confirmDelete !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirmDelete(null);
+        }}
+      >
+        <DialogContent className="rounded-xl border-zinc-200 bg-white sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Excluir tutor e pets vinculados?</DialogTitle>
+            <DialogDescription>
+              Esta ação não pode ser desfeita pela interface.
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmDelete ? (
+            <div className="space-y-3 text-sm text-zinc-700">
+              <p>
+                <span className="font-semibold text-zinc-950">{confirmDelete.name}</span> tem{" "}
+                <span className="font-semibold text-zinc-950">
+                  {confirmDelete.pets.length} pet
+                  {confirmDelete.pets.length === 1 ? "" : "s"}
+                </span>{" "}
+                vinculado{confirmDelete.pets.length === 1 ? "" : "s"}. Excluir o tutor irá{" "}
+                <span className="font-semibold text-rose-700">excluir também esses pets</span>.
+              </p>
+              <ul className="max-h-40 space-y-1 overflow-auto rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
+                {confirmDelete.pets.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{p.name}</span>
+                    <span className="shrink-0 text-rose-700/70">{p.species}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-zinc-500">
+                Agendamentos anteriores ficam preservados no histórico.
+              </p>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-md border-zinc-300 bg-white"
+              onClick={() => setConfirmDelete(null)}
+              disabled={pending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="rounded-md bg-rose-600 text-white hover:bg-rose-700"
+              onClick={() => confirmDelete && runDeleteClient(confirmDelete)}
+              disabled={pending}
+            >
+              <Trash2 className="size-4" />
+              {pending ? "Excluindo…" : "Excluir tutor e pets"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

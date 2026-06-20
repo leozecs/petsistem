@@ -86,10 +86,27 @@ export async function deleteClient(id: string): Promise<{ ok: boolean; error?: s
   const supabase = await createClient();
   if (!supabase) return { ok: false, error: "Supabase indisponível." };
 
+  const deletedAt = new Date().toISOString();
+
+  // Cascade soft-delete: every active pet under this tutor gets the same
+  // deleted_at timestamp. Pets are filtered by petshop_id and client_id so the
+  // tenant boundary remains intact even if `id` somehow crossed it (RLS would
+  // already prevent that — this is defense-in-depth).
+  const { error: petsErr } = await supabase
+    .from("pets")
+    .update({
+      deleted_at: deletedAt,
+      deleted_by: session.user.id,
+    })
+    .eq("client_id", id)
+    .eq("petshop_id", membership.petshopId)
+    .is("deleted_at", null);
+  if (petsErr) return { ok: false, error: petsErr.message };
+
   const { error } = await supabase
     .from("clients")
     .update({
-      deleted_at: new Date().toISOString(),
+      deleted_at: deletedAt,
       deleted_by: session.user.id,
     })
     .eq("id", id)
