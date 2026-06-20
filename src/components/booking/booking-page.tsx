@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { addDays, format, isSameDay, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,6 +37,14 @@ import {
   createPublicBooking,
   getPublicSlots,
 } from "@/app/loja/[slug]/actions";
+
+// O subdomínio (slug.petsistem.com.br) é reescrito pra /loja/<slug>, então /login
+// nele resolveria pra /loja/<slug>/login (404). Apontamos o link absoluto pro
+// domínio raiz onde a página de login realmente vive. Variável publica via
+// NEXT_PUBLIC_ROOT_DOMAIN — fallback pra petsistem.com.br pra browsers velhos.
+const ROOT_DOMAIN =
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "petsistem.com.br";
+const LOGIN_URL = `https://${ROOT_DOMAIN}/login`;
 
 export type BookingService = {
   id: string;
@@ -242,8 +249,8 @@ export function BookingPage({
               <p className="text-xs text-zinc-500">Agendamento online</p>
             </div>
           </div>
-          <Link
-            href="/login"
+          <a
+            href={LOGIN_URL}
             className={cn(
               buttonVariants({ variant: "outline" }),
               "rounded-md border-zinc-300 bg-white",
@@ -251,7 +258,7 @@ export function BookingPage({
           >
             <LogIn className="size-4" />
             Entrar
-          </Link>
+          </a>
         </div>
       </header>
 
@@ -585,12 +592,12 @@ export function BookingPage({
         <footer className="mt-10 flex flex-col items-center gap-2 text-center text-xs text-zinc-500">
           <p>
             É atendente ou faz parte da equipe?{" "}
-            <Link
-              href="/login"
+            <a
+              href={LOGIN_URL}
               className="font-semibold text-zinc-700 underline underline-offset-4 hover:text-zinc-950"
             >
               Logue aqui para acessar o sistema
-            </Link>
+            </a>
           </p>
           <p className="flex items-center gap-1">
             Powered by
