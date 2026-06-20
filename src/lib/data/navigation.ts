@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   CreditCard,
   FileBarChart,
+  Clock,
   HeartPulse,
   Receipt,
   Scissors,
@@ -46,6 +47,7 @@ export const ownerNav: NavItem[] = [
   { href: "/app/caixa", label: "Caixa", icon: Receipt },
   { href: "/app/relatorios", label: "Relatórios", icon: FileBarChart },
   { href: "/app/assinatura", label: "Assinatura", icon: CreditCard },
+  { href: "/app/configuracoes/horarios", label: "Horários", icon: Clock },
   { href: "/app/configuracoes", label: "Configurações", icon: Settings },
 ];
 
