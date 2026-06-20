@@ -372,7 +372,7 @@ export function CobrancasManager({
               </div>
             ) : null}
             <p className="text-xs text-zinc-500">
-              Mostre essa chave pro dono pagar. Quando recebeu, clique em "Confirmar" na linha.
+              Mostre essa chave pro dono pagar. Quando recebeu, clique em &ldquo;Confirmar&rdquo; na linha.
             </p>
           </div>
           <DialogFooter>

@@ -72,13 +72,6 @@ const ROLE_LABEL: Record<string, string> = {
   admin_master: "Admin Master",
 };
 
-function roleTone(role: string): "success" | "warning" | "danger" | "neutral" {
-  if (role === "owner") return "success";
-  if (role === "veterinarian") return "warning";
-  if (role === "admin_master") return "danger";
-  return "neutral";
-}
-
 export function UsuariosManager({
   users,
   petshops,
@@ -116,7 +109,10 @@ export function UsuariosManager({
     router.push(`/admin-master/usuarios?${next.toString()}`);
   }
 
-  // Debounced search push.
+  // Debounced search push — re-running on currentSearch/pushUrl changes would
+  // create a feedback loop (every URL push would re-fire the effect). The
+  // `search` state is the only legitimate trigger.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const id = setTimeout(() => {
       if (search !== currentSearch) pushUrl({ q: search });

@@ -5,7 +5,6 @@ import {
   addMinutes,
   petshopDateOf,
   todayPetshopMidnightUtc,
-  utcInstantOfPetshopMidnight,
 } from "@/lib/calendar/time";
 import type { Database } from "@/lib/supabase/database.types";
 
