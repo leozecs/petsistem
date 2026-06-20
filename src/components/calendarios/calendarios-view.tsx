@@ -44,6 +44,7 @@ import {
 } from "@/lib/calendar/availability";
 import {
   PETSHOP_TZ_OFFSET_MIN,
+  petshopWeekday,
   utcInstantOfPetshopMidnight,
 } from "@/lib/calendar/time";
 import type { Database } from "@/lib/supabase/database.types";
@@ -174,16 +175,17 @@ type GridCell = {
 };
 
 function buildMonthGrid(year: number, month0: number, todayIso: string): GridCell[] {
-  const firstDayOfMonth = new Date(year, month0, 1);
-  const startDow = firstDayOfMonth.getDay(); // 0=Sun
-  const start = new Date(year, month0, 1 - startDow);
+  // Use petshop-TZ weekday so the grid aligns correctly regardless of browser TZ.
+  const firstOfMonthUtc = utcInstantOfPetshopMidnight(year, month0, 1);
+  const startDow = petshopWeekday(firstOfMonthUtc); // 0=Sun in petshop TZ
   const cells: GridCell[] = [];
   for (let i = 0; i < 42; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    const cellYear = d.getFullYear();
-    const cellMonth0 = d.getMonth();
-    const cellDay = d.getDate();
+    const offsetDays = i - startDow;
+    // Walk from (1 - startDow) to (42 - startDow) relative to month start.
+    const dayUtc = new Date(firstOfMonthUtc.getTime() + offsetDays * 86_400_000);
+    const cellYear = dayUtc.getUTCFullYear();
+    const cellMonth0 = dayUtc.getUTCMonth();
+    const cellDay = dayUtc.getUTCDate();
     const iso = isoDateOnlyParts(cellYear, cellMonth0, cellDay);
     cells.push({
       iso,
@@ -249,9 +251,12 @@ export function CalendariosView({
     return formatted.charAt(0).toUpperCase() + formatted.slice(1);
   }, [visibleYear, visibleMonth0]);
 
+  // Use the petshop-TZ midnight UTC instant so LONG_DATE (timeZone America/Sao_Paulo)
+  // always formats the correct calendar day regardless of the browser's local TZ.
   const selectedDate = useMemo(() => {
     const [y, m, d] = activeDateIso.split("-").map(Number);
-    return new Date(y!, (m ?? 1) - 1, d ?? 1);
+    if (!y || !m || !d) return new Date();
+    return utcInstantOfPetshopMidnight(y, m - 1, d);
   }, [activeDateIso]);
 
   const servicesForArea = useMemo(
@@ -676,6 +681,14 @@ export function CalendariosView({
             </DialogDescription>
           </DialogHeader>
 
+          {servicesForArea.length === 0 ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Nenhum serviço cadastrado para {AREA_LABEL[activeArea].toLowerCase()}.{" "}
+              <Link href="/app/servicos" className="font-medium underline underline-offset-2">
+                Cadastrar serviços
+              </Link>
+            </div>
+          ) : (
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             className="grid gap-4 sm:grid-cols-2"
@@ -878,6 +891,7 @@ export function CalendariosView({
               </Button>
             </DialogFooter>
           </form>
+          )}
         </DialogContent>
       </Dialog>
     </motion.div>
