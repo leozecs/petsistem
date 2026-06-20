@@ -413,8 +413,12 @@ export function CalendariosView({
       toast.error("Selecione um serviço.");
       return;
     }
+    // Appointments are fixed 30-min slots. The service is metadata for the work
+    // performed in that slot; its duration drives pricing/reporting but does not
+    // expand the time block. Tenants who need longer services book consecutive
+    // slots manually.
     const startDate = new Date(values.starts_at);
-    const endDate = new Date(startDate.getTime() + service.duration_minutes * 60_000);
+    const endDate = new Date(startDate.getTime() + 30 * 60_000);
 
     const fd = new FormData();
     fd.set("calendar_id", activeCalendarId);

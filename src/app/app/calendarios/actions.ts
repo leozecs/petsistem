@@ -125,15 +125,19 @@ export async function saveAppointment(
     return { ok: false, error: "Serviço incompatível com a área do calendário." };
   }
 
-  // Defense-in-depth: ends_at - starts_at must equal service.duration_minutes.
-  // The DB EXCLUDE constraint cannot enforce this; without this check a client
-  // could submit a near-zero range to slip a ghost row between adjacent bookings.
+  // Defense-in-depth: every appointment is a fixed 30-min slot. The DB EXCLUDE
+  // constraint cannot enforce duration; without this check a client could submit
+  // a near-zero range to slip a ghost row between adjacent bookings.
+  // `targetService.duration_minutes` is informational only — service-level work
+  // longer than a slot is handled by booking consecutive slots.
   const startsAtDate = new Date(parsed.data.starts_at);
   const endsAtDate = new Date(parsed.data.ends_at);
+  const SLOT_MINUTES = 30;
   const actualDurationMin = Math.round((endsAtDate.getTime() - startsAtDate.getTime()) / 60_000);
-  if (actualDurationMin !== targetService.duration_minutes) {
-    return { ok: false, error: "Duração do agendamento não bate com o serviço selecionado." };
+  if (actualDurationMin !== SLOT_MINUTES) {
+    return { ok: false, error: "Cada agendamento ocupa um slot fixo de 30 minutos." };
   }
+  void targetService.duration_minutes; // intentionally unused; kept for future per-slot pricing.
 
   // Verify starts_at falls inside an active schedule window for this calendar's
   // weekday — otherwise out-of-hours ghost bookings can be created via direct POST.
