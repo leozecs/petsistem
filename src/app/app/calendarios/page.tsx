@@ -15,6 +15,8 @@ type ServiceArea = Database["public"]["Enums"]["service_area"];
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
 type CalendarRow = Database["public"]["Tables"]["calendars"]["Row"];
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function parseDateParam(input: string | undefined): Date {
   if (input && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
     const [y, m, d] = input.split("-").map(Number);
@@ -51,7 +53,34 @@ export default async function CalendariosPage({
   const supabase = await createClient();
   if (!supabase) redirect("/login?error=supabase-not-configured");
 
-  const [calendarsRes, servicesRes, vetsRes, employeesRes, clientsRes, petsRes] = await Promise.all([
+  // Pre-calculate the date range from URL params (pure, no async) so we can
+  // start the appointments fetch in the same Promise.all as the calendar list.
+  const selectedDayUtc = parseDateParam(params.date);
+  const selectedParts = petshopDateOf(selectedDayUtc);
+  const activeDateIso = isoDateOnly(selectedParts.year, selectedParts.month0, selectedParts.day);
+  const monthStart = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0, 1);
+  const monthEnd = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0 + 1, 1);
+  const fetchStart = addMinutes(monthStart, -7 * 24 * 60);
+  const fetchEnd = addMinutes(monthEnd, 14 * 24 * 60);
+
+  // Optimistic calendar hint: if params.calendar is a valid UUID use it to start
+  // the schedules + appointments fetch in parallel with the rest. If it turns out
+  // to be wrong (doesn't belong to this petshop/area), we re-fetch below.
+  // Security: all queries filter by petshop_id so an invalid UUID just returns [].
+  const calendarHint = UUID_RE.test(params.calendar ?? "") ? params.calendar! : null;
+
+  const activeArea = (areas.includes(params.area as ServiceArea) ? params.area : areas[0]) as ServiceArea;
+
+  const [
+    calendarsRes,
+    servicesRes,
+    vetsRes,
+    employeesRes,
+    clientsRes,
+    petsRes,
+    schedulesHintRes,
+    appointmentsHintRes,
+  ] = await Promise.all([
     supabase
       .from("calendars")
       .select("*")
@@ -93,6 +122,29 @@ export default async function CalendariosPage({
       .eq("petshop_id", membership.petshopId)
       .is("deleted_at", null)
       .order("name"),
+    // Optimistic: start schedules + appointments NOW using the calendar hint.
+    // If hint is null we resolve immediately with empty data.
+    calendarHint
+      ? supabase
+          .from("schedules")
+          .select("weekday, starts_at, ends_at, active")
+          .eq("petshop_id", membership.petshopId)
+          .eq("calendar_id", calendarHint)
+          .eq("active", true)
+      : Promise.resolve({ data: null, error: null }),
+    calendarHint
+      ? supabase
+          .from("appointments")
+          .select(
+            "id, starts_at, ends_at, status, tutor_name, notes, pet:pets(name), service:services(name, duration_minutes), veterinarian:veterinarians(name), employee:employees(name)",
+          )
+          .eq("petshop_id", membership.petshopId)
+          .eq("calendar_id", calendarHint)
+          .gte("starts_at", fetchStart.toISOString())
+          .lt("starts_at", fetchEnd.toISOString())
+          .is("deleted_at", null)
+          .order("starts_at")
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   const calendars: CalendarRow[] = calendarsRes.data ?? [];
@@ -105,44 +157,41 @@ export default async function CalendariosPage({
   }
 
   const services: ServiceRow[] = servicesRes.data ?? [];
-  const activeArea = (areas.includes(params.area as ServiceArea) ? params.area : areas[0]) as ServiceArea;
   const activeCalendar =
     calendars.find((c) => c.id === params.calendar && c.area === activeArea) ??
     calendars.find((c) => c.area === activeArea) ??
     calendars[0]!;
 
-  const selectedDayUtc = parseDateParam(params.date);
-  const selectedParts = petshopDateOf(selectedDayUtc);
-  const activeDateIso = isoDateOnly(selectedParts.year, selectedParts.month0, selectedParts.day);
+  // If the hint matched the actual calendar, use the prefetched data. Otherwise
+  // make a targeted second fetch. In steady-state navigation this branch is never taken.
+  let schedulesData = calendarHint === activeCalendar.id ? schedulesHintRes.data : null;
+  let appointmentsData = calendarHint === activeCalendar.id ? appointmentsHintRes.data : null;
 
-  // Fetch a generous range around the visible month so adjacent-month cells in
-  // the grid can still show badges if they have appointments.
-  const monthStart = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0, 1);
-  const monthEnd = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0 + 1, 1);
-  const fetchStart = addMinutes(monthStart, -7 * 24 * 60);
-  const fetchEnd = addMinutes(monthEnd, 14 * 24 * 60);
+  if (schedulesData === null || appointmentsData === null) {
+    const [schedulesRes, appointmentsRes] = await Promise.all([
+      supabase
+        .from("schedules")
+        .select("weekday, starts_at, ends_at, active")
+        .eq("petshop_id", membership.petshopId)
+        .eq("calendar_id", activeCalendar.id)
+        .eq("active", true),
+      supabase
+        .from("appointments")
+        .select(
+          "id, starts_at, ends_at, status, tutor_name, notes, pet:pets(name), service:services(name, duration_minutes), veterinarian:veterinarians(name), employee:employees(name)",
+        )
+        .eq("petshop_id", membership.petshopId)
+        .eq("calendar_id", activeCalendar.id)
+        .gte("starts_at", fetchStart.toISOString())
+        .lt("starts_at", fetchEnd.toISOString())
+        .is("deleted_at", null)
+        .order("starts_at"),
+    ]);
+    schedulesData = schedulesRes.data;
+    appointmentsData = appointmentsRes.data;
+  }
 
-  const [schedulesRes, appointmentsRes] = await Promise.all([
-    supabase
-      .from("schedules")
-      .select("weekday, starts_at, ends_at, active")
-      .eq("petshop_id", membership.petshopId)
-      .eq("calendar_id", activeCalendar.id)
-      .eq("active", true),
-    supabase
-      .from("appointments")
-      .select(
-        "id, starts_at, ends_at, status, tutor_name, notes, pet:pets(name), service:services(name, duration_minutes), veterinarian:veterinarians(name), employee:employees(name)",
-      )
-      .eq("petshop_id", membership.petshopId)
-      .eq("calendar_id", activeCalendar.id)
-      .gte("starts_at", fetchStart.toISOString())
-      .lt("starts_at", fetchEnd.toISOString())
-      .is("deleted_at", null)
-      .order("starts_at"),
-  ]);
-
-  const schedules: ScheduleInput[] = (schedulesRes.data ?? []).map((s) => ({
+  const schedules: ScheduleInput[] = (schedulesData ?? []).map((s) => ({
     weekday: s.weekday,
     starts_at: s.starts_at,
     ends_at: s.ends_at,
@@ -161,7 +210,7 @@ export default async function CalendariosPage({
     veterinarian: { name: string } | null;
     employee: { name: string } | null;
   };
-  const apptRows = (appointmentsRes.data ?? []) as RawAppt[];
+  const apptRows = (appointmentsData ?? []) as RawAppt[];
 
   const appointmentsByDay: Record<
     string,

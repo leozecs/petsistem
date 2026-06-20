@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export type GlobalRole = "admin_master" | "user";
@@ -46,7 +47,9 @@ type RawMembership = {
   } | null;
 };
 
-export async function getSession(): Promise<SessionContext | null> {
+// `cache()` deduplicates calls within a single React render tree (one server request).
+// Layout and every page child both call getSession(); only the first actually hits Supabase.
+export const getSession = cache(async function getSession(): Promise<SessionContext | null> {
   const supabase = await createClient();
   if (!supabase) return null;
 
@@ -97,7 +100,7 @@ export async function getSession(): Promise<SessionContext | null> {
     memberships,
     activeMembership: memberships[0] ?? null,
   };
-}
+});
 
 export function isAdminMaster(session: SessionContext | null): boolean {
   return session?.user.globalRole === "admin_master";
