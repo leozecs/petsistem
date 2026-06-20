@@ -37,6 +37,7 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import {
   computeAvailability,
+  effectiveSchedules,
   type AppointmentStatus,
   type ScheduleInput,
 } from "@/lib/calendar/availability";
@@ -309,7 +310,7 @@ export function CalendariosView({
       }));
     return computeAvailability({
       petshopMidnightUtc: petshopMidnight,
-      schedules,
+      schedules: effectiveSchedules(schedules),
       appointments: dayAppts,
       slotDurationMin: selectedService.duration_minutes,
       stepMin: 30,

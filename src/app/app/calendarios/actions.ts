@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { petshopMinutesIntoDay, petshopWeekday, petshopDateOf, utcInstantOfPetshopMidnight, parseTimeOfDayToMinutes } from "@/lib/calendar/time";
+import { effectiveSchedules } from "@/lib/calendar/availability";
 import type { Database } from "@/lib/supabase/database.types";
 
 type ServiceArea = Database["public"]["Enums"]["service_area"];
@@ -146,19 +147,33 @@ export async function saveAppointment(
   const startMinutes = petshopMinutesIntoDay(startsAtDate);
   const endMinutes = startMinutes + targetService.duration_minutes;
 
-  const { data: schedules, error: schedErr } = await supabase
+  // Pull ALL schedules for this calendar (any weekday) so we know whether the
+  // calendar has any explicit schedule at all. Apply the same default-window
+  // fallback the client uses so users can book without manually configuring
+  // schedules. Validation still happens — booking outside the (possibly
+  // default) window is rejected.
+  const { data: allSchedules, error: schedErr } = await supabase
     .from("schedules")
-    .select("starts_at, ends_at, active")
+    .select("weekday, starts_at, ends_at, active")
     .eq("calendar_id", parsed.data.calendar_id)
     .eq("petshop_id", membership.petshopId)
-    .eq("weekday", weekday)
     .eq("active", true);
   if (schedErr) return { ok: false, error: schedErr.message };
-  const fitsSchedule = (schedules ?? []).some((s) => {
-    const sStart = parseTimeOfDayToMinutes(s.starts_at);
-    const sEnd = parseTimeOfDayToMinutes(s.ends_at);
-    return sStart <= startMinutes && endMinutes <= sEnd;
-  });
+  const effective = effectiveSchedules(
+    (allSchedules ?? []).map((s) => ({
+      weekday: s.weekday,
+      starts_at: s.starts_at,
+      ends_at: s.ends_at,
+      active: s.active,
+    })),
+  );
+  const fitsSchedule = effective
+    .filter((s) => s.weekday === weekday && s.active)
+    .some((s) => {
+      const sStart = parseTimeOfDayToMinutes(s.starts_at);
+      const sEnd = parseTimeOfDayToMinutes(s.ends_at);
+      return sStart <= startMinutes && endMinutes <= sEnd;
+    });
   if (!fitsSchedule) {
     return { ok: false, error: "Horário fora da janela de funcionamento do calendário." };
   }

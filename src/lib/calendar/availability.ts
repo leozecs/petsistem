@@ -34,6 +34,23 @@ export type Slot = {
   appointment?: AppointmentInput;
 };
 
+/**
+ * Default operating window for calendars that have not yet configured weekly
+ * schedules. Mon-Sat 08:00-18:00, closed Sunday. Used as a fallback so the
+ * appointment form always shows slots even before the tenant sets schedules.
+ * Must stay in sync with the equivalent fallback in calendarios/actions.ts.
+ */
+export const DEFAULT_SCHEDULES: ScheduleInput[] = [1, 2, 3, 4, 5, 6].map((d) => ({
+  weekday: d,
+  starts_at: "08:00:00",
+  ends_at: "18:00:00",
+  active: true,
+}));
+
+export function effectiveSchedules(schedules: ScheduleInput[]): ScheduleInput[] {
+  return schedules.length > 0 ? schedules : DEFAULT_SCHEDULES;
+}
+
 export type AvailabilityInput = {
   /** UTC instant of midnight petshop-TZ for the target date. */
   petshopMidnightUtc: Date;
