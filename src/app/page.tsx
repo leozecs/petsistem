@@ -1,25 +1,16 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { BookingPage } from "@/components/booking/booking-page";
 import { LoginScreen } from "@/components/auth/login-screen";
-import { resolveTenantFromHost } from "@/lib/tenant";
 import { getSession } from "@/lib/auth/session";
 
-function storeNameFromSubdomain(subdomain: string) {
-  return subdomain
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-export default async function Home({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const [headerList, params] = await Promise.all([headers(), searchParams]);
-  const tenant = resolveTenantFromHost(headerList.get("host"));
-
-  if (tenant.zone === "tenant" && tenant.subdomain) {
-    return <BookingPage storeName={storeNameFromSubdomain(tenant.subdomain)} />;
-  }
-
+// The root `/` only handles the marketing/admin domain (petsistem.com.br).
+// Tenant subdomains (<slug>.petsistem.com.br) are rewritten by the middleware
+// to `/loja/<slug>`, so they never hit this page.
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
   const session = await getSession();
   if (session) {
     if (session.user.globalRole === "admin_master") {
@@ -29,6 +20,5 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ e
       redirect("/app");
     }
   }
-
   return <LoginScreen error={params.error} />;
 }

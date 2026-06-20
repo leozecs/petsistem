@@ -1,271 +1,603 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { addDays, format, isSameDay } from "date-fns";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { addDays, format, isSameDay, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarCheck, HeartPulse, LogIn, PawPrint, Scissors } from "lucide-react";
+import { toast } from "sonner";
+import {
+  CalendarCheck,
+  CheckCircle2,
+  Clock,
+  HeartPulse,
+  Loader2,
+  LogIn,
+  MapPin,
+  PawPrint,
+  Phone,
+  Scissors,
+  Send,
+} from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { tenant } from "@/lib/data/demo";
+import { PetsistemLogo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
+import {
+  createPublicBooking,
+  getPublicSlots,
+} from "@/app/loja/[slug]/actions";
 
-const groomingServices = ["Banho", "Tosa", "Banho + Tosa", "Hidratação", "Corte de Unhas", "Escovação"];
-const veterinaryServices = ["Consulta", "Retorno", "Vacinação", "Exames", "Procedimentos"];
-const times = ["08:30", "09:15", "10:40", "13:30", "14:10", "15:20", "16:00"];
+export type BookingService = {
+  id: string;
+  name: string;
+  area: "grooming" | "veterinary";
+  durationMinutes: number;
+  priceCents: number;
+  description: string | null;
+};
 
-function availableDays() {
-  const today = new Date();
-  return Array.from({ length: 16 }, (_, index) => addDays(today, index + 1)).filter((date) => date.getDay() !== 0);
+type Props = {
+  slug: string;
+  storeName: string;
+  storeStatus: string;
+  primaryColor: string;
+  services: BookingService[];
+  address: string | null;
+  phone: string | null;
+};
+
+const SPECIES_OPTIONS = ["Cachorro", "Gato", "Pássaro", "Roedor", "Réptil", "Outro"];
+
+function formatBRL(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-export function BookingPage({ storeName = tenant.name }: { storeName?: string }) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
-  const [selectedTime, setSelectedTime] = useState<string>("");
-  const [open, setOpen] = useState(false);
-  const days = useMemo(() => availableDays(), []);
+function bookableDays(): Date[] {
+  // Próximos 60 dias a partir de amanhã. Domingo segue habilitado caso o
+  // schedule explícito permita; o filtro real ocorre no servidor via slots.
+  return Array.from({ length: 60 }, (_, i) => addDays(startOfDay(new Date()), i + 1));
+}
 
-  function chooseDay(day?: Date) {
-    if (!day) return;
-    setSelectedDate(day);
-    setOpen(true);
+export function BookingPage({
+  slug,
+  storeName,
+  storeStatus,
+  primaryColor,
+  services,
+  address,
+  phone,
+}: Props) {
+  const [activeArea, setActiveArea] = useState<"grooming" | "veterinary">(
+    services.find((s) => s.area === "grooming") ? "grooming" : "veterinary",
+  );
+  const [serviceId, setServiceId] = useState<string>("");
+  const [tutorName, setTutorName] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [petName, setPetName] = useState("");
+  const [species, setSpecies] = useState("Cachorro");
+  const [breed, setBreed] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [selectedSlot, setSelectedSlot] = useState<string>("");
+  const [notes, setNotes] = useState("");
+  const [slots, setSlots] = useState<string[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  const servicesForArea = useMemo(
+    () => services.filter((s) => s.area === activeArea),
+    [services, activeArea],
+  );
+  const selectedService = servicesForArea.find((s) => s.id === serviceId);
+
+  // Reset slot quando muda data/serviço.
+  useEffect(() => {
+    setSelectedSlot("");
+  }, [selectedDate, serviceId, activeArea]);
+
+  // Buscar slots quando service+data selecionados.
+  useEffect(() => {
+    if (!selectedDate || !serviceId) {
+      setSlots([]);
+      return;
+    }
+    let cancelled = false;
+    setSlotsLoading(true);
+    const dateIso = format(selectedDate, "yyyy-MM-dd");
+    void getPublicSlots({
+      slug,
+      area: activeArea,
+      service_id: serviceId,
+      date: dateIso,
+    }).then((res) => {
+      if (cancelled) return;
+      if (res.ok) setSlots(res.slots);
+      else setSlots([]);
+      setSlotsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, activeArea, serviceId, selectedDate]);
+
+  // Reset service ao trocar de aba.
+  useEffect(() => {
+    setServiceId(servicesForArea[0]?.id ?? "");
+  }, [activeArea, servicesForArea]);
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!selectedService || !selectedSlot) {
+      toast.error("Escolha o serviço, o dia e o horário.");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.set("slug", slug);
+    fd.set("area", activeArea);
+    fd.set("service_id", selectedService.id);
+    fd.set("tutor_name", tutorName);
+    fd.set("whatsapp", whatsapp);
+    fd.set("pet_name", petName);
+    fd.set("species", species);
+    fd.set("breed", breed);
+    fd.set("starts_at", selectedSlot);
+    fd.set("notes", notes);
+
+    startTransition(async () => {
+      const result = await createPublicBooking(fd);
+      if (result.ok) {
+        setSubmitted(true);
+      } else {
+        toast.error(result.error || "Erro ao agendar.");
+      }
+    });
+  }
+
+  if (storeStatus !== "active") {
+    return (
+      <main className="grid min-h-[100dvh] place-items-center bg-zinc-50 px-4">
+        <div className="max-w-md rounded-xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-900">
+          <h1 className="text-lg font-semibold">{storeName}</h1>
+          <p className="mt-2 text-sm">
+            Esta loja não está aceitando agendamentos no momento.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <main className="grid min-h-[100dvh] place-items-center bg-zinc-50 px-4">
+        <Card className="max-w-md rounded-xl border-emerald-200 bg-white shadow-lg shadow-emerald-900/5">
+          <CardContent className="space-y-3 p-8 text-center">
+            <div
+              className="mx-auto flex size-14 items-center justify-center rounded-full"
+              style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}
+            >
+              <CheckCircle2 className="size-8" />
+            </div>
+            <h1 className="text-2xl font-semibold text-zinc-950">
+              Solicitação enviada!
+            </h1>
+            <p className="text-sm leading-6 text-zinc-600">
+              Recebemos o pedido. A equipe da <strong>{storeName}</strong> vai
+              confirmar o agendamento e entrar em contato pelo WhatsApp em
+              instantes.
+            </p>
+            <Button
+              type="button"
+              onClick={() => {
+                setSubmitted(false);
+                setSelectedDate(undefined);
+                setSelectedSlot("");
+                setPetName("");
+                setBreed("");
+                setNotes("");
+              }}
+              className="rounded-md"
+              style={{ backgroundColor: primaryColor, color: "white" }}
+            >
+              Fazer outro agendamento
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#f5f7f1] px-4 py-5 text-zinc-950 sm:px-6 lg:px-8">
-      <section className="mx-auto flex max-w-6xl flex-col">
-        <header className="flex h-14 items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-zinc-950 text-sm font-bold text-white">
-              PS
+    <main className="min-h-[100dvh] bg-zinc-50 text-zinc-950">
+      {/* Header */}
+      <header className="border-b border-zinc-200 bg-white">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-28 items-center overflow-hidden sm:w-32">
+              <PetsistemLogo tone="dark" className="w-28 sm:w-32" />
             </div>
-            <div>
-              <p className="text-sm font-semibold">{storeName}</p>
+            <span
+              className="hidden h-6 w-px sm:block"
+              style={{ backgroundColor: "#e4e4e7" }}
+            />
+            <div className="hidden sm:block">
+              <p
+                className="text-sm font-semibold"
+                style={{ color: primaryColor }}
+              >
+                {storeName}
+              </p>
               <p className="text-xs text-zinc-500">Agendamento online</p>
             </div>
-          </Link>
+          </div>
           <Link
             href="/login"
-            className={cn(buttonVariants({ variant: "outline" }), "rounded-md border-zinc-300 bg-white")}
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "rounded-md border-zinc-300 bg-white",
+            )}
           >
             <LogIn className="size-4" />
             Entrar
           </Link>
-        </header>
+        </div>
+      </header>
 
-        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center py-10 sm:py-14">
-          <div className="mb-7 text-center">
-            <p className="text-sm font-semibold text-zinc-600">{storeName}</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl">
-              Agende o cuidado do seu pet
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-zinc-600 sm:text-base">
-              Escolha o tipo de atendimento, selecione um dia disponível no calendário e confirme um horário no popup.
-            </p>
+      <section className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
+        <div className="mb-8 text-center sm:mb-10">
+          <p
+            className="text-xs font-semibold uppercase tracking-wide"
+            style={{ color: primaryColor }}
+          >
+            {storeName}
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-5xl">
+            Agende o cuidado do seu pet
+          </h1>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-zinc-600 sm:text-base">
+            Em poucos toques. Escolha o serviço, o dia e o horário disponível —
+            confirmamos pelo WhatsApp.
+          </p>
+        </div>
+
+        <Card className="rounded-2xl border-zinc-200 bg-white shadow-md shadow-zinc-900/5">
+          <CardContent className="space-y-6 p-5 sm:p-7">
+            <Tabs
+              value={activeArea}
+              onValueChange={(v) => setActiveArea(v as "grooming" | "veterinary")}
+            >
+              <TabsList className="grid h-11 w-full grid-cols-2 rounded-lg bg-zinc-100 p-1">
+                <TabsTrigger value="grooming" className="rounded-md">
+                  <Scissors className="size-4" />
+                  Banho e Tosa
+                </TabsTrigger>
+                <TabsTrigger value="veterinary" className="rounded-md">
+                  <HeartPulse className="size-4" />
+                  Veterinário
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="grooming" className="mt-6" />
+              <TabsContent value="veterinary" className="mt-6" />
+            </Tabs>
+
+            <form onSubmit={onSubmit} className="space-y-6">
+              {/* Tutor + Pet */}
+              <fieldset className="space-y-4">
+                <legend className="text-sm font-semibold text-zinc-950">
+                  Tutor e pet
+                </legend>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="tutor">Nome do tutor</Label>
+                    <Input
+                      id="tutor"
+                      value={tutorName}
+                      onChange={(e) => setTutorName(e.target.value)}
+                      placeholder="Nome completo"
+                      required
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp">WhatsApp</Label>
+                    <Input
+                      id="whatsapp"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      placeholder="(11) 99999-9999"
+                      required
+                      autoComplete="tel"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pet">Nome do pet</Label>
+                    <Input
+                      id="pet"
+                      value={petName}
+                      onChange={(e) => setPetName(e.target.value)}
+                      placeholder="Ex: Luna"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="species">Espécie</Label>
+                      <Select value={species} onValueChange={(v) => setSpecies(String(v ?? "Cachorro"))}>
+                        <SelectTrigger id="species" className="rounded-md">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SPECIES_OPTIONS.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="breed">Raça</Label>
+                      <Input
+                        id="breed"
+                        value={breed}
+                        onChange={(e) => setBreed(e.target.value)}
+                        placeholder="Opcional"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
+
+              {/* Serviço */}
+              <fieldset className="space-y-4">
+                <legend className="text-sm font-semibold text-zinc-950">Serviço</legend>
+                {servicesForArea.length === 0 ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    Nenhum serviço disponível nessa área no momento.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Select
+                      value={serviceId || undefined}
+                      onValueChange={(v) => setServiceId(String(v ?? ""))}
+                    >
+                      <SelectTrigger className="rounded-md">
+                        <SelectValue placeholder="Escolha o serviço" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {servicesForArea.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name} · {s.durationMinutes} min ·{" "}
+                            {formatBRL(s.priceCents)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedService?.description ? (
+                      <p className="text-xs text-zinc-500">
+                        {selectedService.description}
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </fieldset>
+
+              {/* Data + Hora */}
+              <fieldset className="grid gap-6 lg:grid-cols-[1fr_320px]">
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <CalendarCheck
+                      className="size-4"
+                      style={{ color: primaryColor }}
+                    />
+                    <p className="text-sm font-semibold">Escolha o dia</p>
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    locale={ptBR}
+                    disabled={(day) =>
+                      !bookableDays().some((avail) => isSameDay(avail, day))
+                    }
+                    className="mx-auto rounded-lg bg-white"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Clock className="size-4" style={{ color: primaryColor }} />
+                      <p className="text-sm font-semibold">Horário</p>
+                    </div>
+                    {!selectedDate ? (
+                      <p className="text-xs text-zinc-500">
+                        Escolha um dia primeiro.
+                      </p>
+                    ) : !serviceId ? (
+                      <p className="text-xs text-zinc-500">
+                        Selecione o serviço para ver os horários disponíveis.
+                      </p>
+                    ) : slotsLoading ? (
+                      <p className="flex items-center gap-2 text-xs text-zinc-500">
+                        <Loader2 className="size-3 animate-spin" />
+                        Buscando horários disponíveis…
+                      </p>
+                    ) : slots.length === 0 ? (
+                      <p className="text-xs text-zinc-500">
+                        Nenhum horário disponível para esse dia. Tente outro.
+                      </p>
+                    ) : (
+                      <Select
+                        value={selectedSlot || undefined}
+                        onValueChange={(v) => setSelectedSlot(String(v ?? ""))}
+                      >
+                        <SelectTrigger className="rounded-md">
+                          <SelectValue placeholder="Escolha o horário" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {slots.map((iso) => {
+                            const hhmm = iso.split("T")[1] ?? iso;
+                            const next = (() => {
+                              const [h, m] = hhmm.split(":").map(Number);
+                              const total = (h ?? 0) * 60 + (m ?? 0) + 30;
+                              const nh = String(Math.floor(total / 60)).padStart(2, "0");
+                              const nm = String(total % 60).padStart(2, "0");
+                              return `${nh}:${nm}`;
+                            })();
+                            return (
+                              <SelectItem key={iso} value={iso}>
+                                {hhmm} às {next}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-zinc-200 bg-white p-4">
+                    <div className="flex items-center gap-2">
+                      <PawPrint className="size-4" style={{ color: primaryColor }} />
+                      <p className="text-sm font-semibold">Resumo</p>
+                    </div>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-zinc-500">Dia</span>
+                        <strong className="text-right">
+                          {selectedDate
+                            ? format(selectedDate, "dd/MM/yyyy")
+                            : "—"}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-zinc-500">Horário</span>
+                        <strong>
+                          {selectedSlot ? selectedSlot.split("T")[1] : "—"}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-zinc-500">Serviço</span>
+                        <strong className="text-right">
+                          {selectedService?.name ?? "—"}
+                        </strong>
+                      </div>
+                      {selectedService ? (
+                        <div className="flex justify-between gap-3 border-t border-zinc-100 pt-2">
+                          <span className="text-zinc-500">Valor</span>
+                          <strong style={{ color: primaryColor }}>
+                            {formatBRL(selectedService.priceCents)}
+                          </strong>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
+
+              {/* Observações */}
+              <fieldset className="space-y-2">
+                <Label htmlFor="notes">
+                  {activeArea === "grooming"
+                    ? "Observações para a equipe"
+                    : "Motivo da consulta"}
+                </Label>
+                <Textarea
+                  id="notes"
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder={
+                    activeArea === "grooming"
+                      ? "Alergias, comportamento, preferências de tosa…"
+                      : "Sintomas, retorno, vacina ou procedimento necessário…"
+                  }
+                />
+              </fieldset>
+
+              <Button
+                type="submit"
+                disabled={
+                  pending ||
+                  !selectedSlot ||
+                  !serviceId ||
+                  !tutorName ||
+                  !whatsapp ||
+                  !petName
+                }
+                className="h-12 w-full rounded-md text-white"
+                style={{ backgroundColor: primaryColor }}
+              >
+                {pending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Enviando…
+                  </>
+                ) : (
+                  <>
+                    <Send className="size-4" />
+                    Confirmar agendamento
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Info loja */}
+        {address || phone ? (
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {address ? (
+              <div className="flex items-start gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700">
+                <MapPin
+                  className="mt-0.5 size-4 shrink-0"
+                  style={{ color: primaryColor }}
+                />
+                <span className="whitespace-pre-wrap">{address}</span>
+              </div>
+            ) : null}
+            {phone ? (
+              <a
+                href={`tel:${phone}`}
+                className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700 transition hover:bg-zinc-50"
+              >
+                <Phone className="size-4" style={{ color: primaryColor }} />
+                {phone}
+              </a>
+            ) : null}
           </div>
+        ) : null}
 
-          <Card className="rounded-xl border-zinc-200 bg-white shadow-sm shadow-zinc-900/5">
-            <CardContent className="p-4 sm:p-6">
-              <Tabs defaultValue="grooming" className="space-y-6">
-                <TabsList className="grid h-11 w-full grid-cols-2 rounded-lg bg-zinc-100 p-1">
-                  <TabsTrigger value="grooming" className="rounded-md">
-                    <Scissors className="size-4" />
-                    Banho e Tosa
-                  </TabsTrigger>
-                  <TabsTrigger value="veterinary" className="rounded-md">
-                    <HeartPulse className="size-4" />
-                    Veterinário
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="grooming">
-                  <BookingForm
-                    type="grooming"
-                    services={groomingServices}
-                    selectedDate={selectedDate}
-                    selectedTime={selectedTime}
-                    days={days}
-                    onSelectDay={chooseDay}
-                  />
-                </TabsContent>
-                <TabsContent value="veterinary">
-                  <BookingForm
-                    type="veterinary"
-                    services={veterinaryServices}
-                    selectedDate={selectedDate}
-                    selectedTime={selectedTime}
-                    days={days}
-                    onSelectDay={chooseDay}
-                  />
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-
-          <div className="mt-6 flex flex-col items-center justify-center gap-3 rounded-lg border border-zinc-200 bg-white/70 p-4 text-center sm:flex-row">
-            <p className="text-sm text-zinc-600">É atendente ou faz parte da equipe?</p>
-            <Link href="/login" className="text-sm font-semibold text-zinc-950 underline underline-offset-4">
+        {/* Footer */}
+        <footer className="mt-10 flex flex-col items-center gap-2 text-center text-xs text-zinc-500">
+          <p>
+            É atendente ou faz parte da equipe?{" "}
+            <Link
+              href="/login"
+              className="font-semibold text-zinc-700 underline underline-offset-4 hover:text-zinc-950"
+            >
               Logue aqui para acessar o sistema
             </Link>
-          </div>
-        </div>
+          </p>
+          <p className="flex items-center gap-1">
+            Powered by
+            <span className="font-semibold text-zinc-700">PETSISTEM</span>
+          </p>
+        </footer>
       </section>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="rounded-xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedDate ? format(selectedDate, "dd 'de' MMMM", { locale: ptBR }) : "Escolha um horário"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {times.map((time) => (
-              <Button
-                key={time}
-                variant={selectedTime === time ? "default" : "outline"}
-                className="h-11 rounded-md"
-                onClick={() => {
-                  setSelectedTime(time);
-                  setOpen(false);
-                }}
-              >
-                {time}
-              </Button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
     </main>
-  );
-}
-
-function BookingForm({
-  type,
-  services,
-  selectedDate,
-  selectedTime,
-  days,
-  onSelectDay,
-}: {
-  type: "grooming" | "veterinary";
-  services: string[];
-  selectedDate?: Date;
-  selectedTime: string;
-  days: Date[];
-  onSelectDay: (day?: Date) => void;
-}) {
-  return (
-    <form className="grid gap-6">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Nome do tutor</Label>
-          <Input className="rounded-md" placeholder="Nome completo" />
-        </div>
-        <div className="space-y-2">
-          <Label>WhatsApp</Label>
-          <Input className="rounded-md" placeholder="(00) 00000-0000" />
-        </div>
-        <div className="space-y-2">
-          <Label>Nome do pet</Label>
-          <Input className="rounded-md" placeholder="Ex: Luna" />
-        </div>
-        <div className="space-y-2">
-          <Label>Serviço</Label>
-          <Select>
-            <SelectTrigger className="rounded-md">
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              {services.map((service) => (
-                <SelectItem key={service} value={service}>
-                  {service}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Espécie</Label>
-          <Select>
-            <SelectTrigger className="rounded-md">
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="dog">Cachorro</SelectItem>
-              <SelectItem value="cat">Gato</SelectItem>
-              <SelectItem value="other">Outro</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Raça</Label>
-          <Input className="rounded-md" placeholder="Raça ou SRD" />
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <CalendarCheck className="size-4 text-zinc-600" />
-            <p className="text-sm font-semibold">Escolha o dia</p>
-          </div>
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={onSelectDay}
-            locale={ptBR}
-            disabled={(day) => !days.some((available) => isSameDay(available, day))}
-            className="mx-auto rounded-lg bg-white"
-          />
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-            <div className="flex items-center gap-2">
-              <PawPrint className="size-4 text-zinc-600" />
-              <p className="text-sm font-semibold">Resumo</p>
-            </div>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <span className="text-zinc-500">Dia</span>
-                <strong className="text-right">
-                  {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione no calendário"}
-                </strong>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-zinc-500">Horário</span>
-                <strong>{selectedTime || "Escolha no popup"}</strong>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-zinc-500">Tipo</span>
-                <strong>{type === "grooming" ? "Banho e Tosa" : "Veterinário"}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{type === "grooming" ? "Observações para a equipe" : "Motivo da consulta"}</Label>
-            <Textarea
-              className="min-h-28 rounded-md"
-              placeholder={
-                type === "grooming"
-                  ? "Alergias, comportamento, preferências de tosa..."
-                  : "Sintomas, retorno, vacina ou procedimento necessário..."
-              }
-            />
-          </div>
-          <Button className="h-11 w-full rounded-md bg-zinc-950 text-white hover:bg-zinc-800">
-            Confirmar agendamento
-          </Button>
-        </div>
-      </div>
-    </form>
   );
 }
