@@ -10,7 +10,6 @@ import {
   Receipt,
   Scissors,
   Settings,
-  ShieldCheck,
   Store,
   Stethoscope,
   Users,
@@ -32,7 +31,6 @@ export const adminMasterNav: NavItem[] = [
   { href: "/admin-master/assinaturas", label: "Assinaturas", icon: FileBarChart },
   { href: "/admin-master/cobrancas", label: "Cobranças", icon: Bell },
   { href: "/admin-master/usuarios", label: "Usuários", icon: Users },
-  { href: "/admin-master/auditoria", label: "Auditoria", icon: ShieldCheck },
   { href: "/admin-master/configuracoes", label: "Configurações", icon: Settings },
 ];
 
