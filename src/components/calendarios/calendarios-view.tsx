@@ -292,9 +292,6 @@ export function CalendariosView({
     const petshopMidnight = utcInstantOfPetshopMidnight(y, m - 1, d);
     const nextDay = isoDateOnlyParts(y, m - 1, d + 1);
     const prevDay = isoDateOnlyParts(y, m - 1, d - 1);
-    // Cross-midnight appointments (e.g. yesterday 23:30 → today 01:00) live in
-    // the previous day's bucket but still occupy slots on the active day. Pull
-    // the adjacent buckets so the engine sees them.
     const candidates = [
       ...(appointmentsByDay[prevDay] ?? []),
       ...(appointmentsByDay[activeDateIso] ?? []),
@@ -308,13 +305,35 @@ export function CalendariosView({
         ends_at: new Date(a.endIso),
         status: a.status,
       }));
-    return computeAvailability({
+
+    // Generate raw 30-min anchor slots. Engine marks each as free/occupied
+    // based on whether it overlaps any existing appointment.
+    const rawSlots = computeAvailability({
       petshopMidnightUtc: petshopMidnight,
       schedules: effectiveSchedules(schedules),
       appointments: dayAppts,
-      slotDurationMin: selectedService.duration_minutes,
+      slotDurationMin: 30,
       stepMin: 30,
-    }).filter((s) => s.status === "free");
+    });
+
+    // A service of duration D needs ceil(D / 30) consecutive free 30-min slots
+    // starting at the anchor. Walk the array and keep anchors whose forward
+    // window is fully free AND contiguous (no gap across schedule windows).
+    const slotsNeeded = Math.max(1, Math.ceil(selectedService.duration_minutes / 30));
+    const bookable: typeof rawSlots = [];
+    for (let i = 0; i <= rawSlots.length - slotsNeeded; i++) {
+      const window = rawSlots.slice(i, i + slotsNeeded);
+      if (!window.every((s) => s.status === "free")) continue;
+      let contiguous = true;
+      for (let j = 0; j < window.length - 1; j++) {
+        if (window[j]!.end.getTime() !== window[j + 1]!.start.getTime()) {
+          contiguous = false;
+          break;
+        }
+      }
+      if (contiguous) bookable.push(window[0]!);
+    }
+    return bookable;
   }, [selectedService, activeDateIso, schedules, appointmentsByDay]);
 
   function navigateMonth(delta: number) {
