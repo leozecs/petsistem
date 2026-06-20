@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronRight as ChevronAdvance,
+  MessageCircle,
   PenLine,
   Plus,
   Undo2,
@@ -44,6 +45,7 @@ import {
   nextStatus,
   prevStatus,
 } from "@/lib/calendar/status";
+import { buildConfirmationMessage, buildWhatsappUrl } from "@/lib/whatsapp";
 import { Combobox } from "@/components/ui/combobox";
 import {
   computeAvailability,
@@ -71,6 +73,8 @@ type ApptSummary = {
   service_name: string | null;
   professional_name: string | null;
   tutor_name: string | null;
+  tutor_phone: string | null;
+  tutor_whatsapp: string | null;
 };
 
 type Props = {
@@ -86,6 +90,7 @@ type Props = {
   pets: { id: string; name: string; client_id: string; species: string }[];
   schedules: ScheduleInput[];
   appointmentsByDay: Record<string, ApptSummary[]>;
+  petshopName: string;
 };
 
 const HHMM = new Intl.DateTimeFormat("pt-BR", {
@@ -224,6 +229,7 @@ export function CalendariosView({
   pets,
   schedules,
   appointmentsByDay,
+  petshopName,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -732,6 +738,31 @@ export function CalendariosView({
                           </p>
                         </div>
                       </div>
+                      {(() => {
+                        // wa.me link prefers the tutor's WhatsApp number, falls
+                        // back to phone. Disabled when neither is on file.
+                        const waUrl = buildWhatsappUrl(
+                          a.tutor_whatsapp ?? a.tutor_phone,
+                          buildConfirmationMessage({
+                            tutorName: a.tutor_name,
+                            petName: a.pet_name,
+                            serviceName: a.service_name,
+                            startIso: a.startIso,
+                            petshopName,
+                          }),
+                        );
+                        return waUrl ? (
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[0.6875rem] font-medium text-emerald-800 transition hover:bg-emerald-100"
+                          >
+                            <MessageCircle className="size-3" />
+                            WhatsApp confirmação
+                          </a>
+                        ) : null;
+                      })()}
                       {isTerminal(a.status) ? null : (
                         <div className="mt-3 flex flex-wrap gap-1">
                           {(() => {
