@@ -303,3 +303,128 @@ function friendlyError(raw: string): string {
   }
   return raw;
 }
+
+const createClientSchema = z.object({
+  name: z.string().trim().min(2, "Nome muito curto").max(120),
+  phone: z.string().trim().max(40).optional(),
+});
+
+export type CreateEntityResult =
+  | { ok: true; id: string; name: string }
+  | { ok: false; error: string };
+
+/**
+ * Inline-create a client (tutor) from the appointment form. Reuses an existing
+ * client of the same name (case-insensitive) within the tenant to avoid duplicates.
+ * Security: rejects unless the caller has an operational role on the active tenant.
+ */
+export async function createClientInline(
+  name: string,
+  phone?: string,
+): Promise<CreateEntityResult> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant", "veterinarian"])) {
+    return { ok: false, error: "Sem permissão." };
+  }
+  const parsed = createClientSchema.safeParse({ name, phone });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  const trimmed = parsed.data.name.trim();
+  const { data: existing } = await supabase
+    .from("clients")
+    .select("id, name")
+    .eq("petshop_id", membership.petshopId)
+    .is("deleted_at", null)
+    .ilike("name", trimmed)
+    .maybeSingle();
+  if (existing) {
+    revalidatePath("/app/calendarios");
+    return { ok: true, id: existing.id, name: existing.name };
+  }
+
+  const { data, error } = await supabase
+    .from("clients")
+    .insert({
+      petshop_id: membership.petshopId,
+      name: trimmed,
+      phone: parsed.data.phone?.trim() || "",
+      created_by: session.user.id,
+    })
+    .select("id, name")
+    .single();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/app/calendarios");
+  return { ok: true, id: data.id, name: data.name };
+}
+
+const createPetSchema = z.object({
+  name: z.string().trim().min(1, "Nome obrigatório").max(80),
+  client_id: z.string().uuid("Tutor obrigatório"),
+  species: z.string().trim().min(1).max(40).default("dog"),
+});
+
+/**
+ * Inline-create a pet linked to a tutor (client) from the appointment form.
+ * Reuses an existing pet of the same name under that client (case-insensitive).
+ * Defense-in-depth: verifies the client belongs to the caller's petshop before insert.
+ */
+export async function createPetInline(
+  name: string,
+  clientId: string,
+  species = "dog",
+): Promise<CreateEntityResult> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant", "veterinarian"])) {
+    return { ok: false, error: "Sem permissão." };
+  }
+  const parsed = createPetSchema.safeParse({ name, client_id: clientId, species });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  const { data: client } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("id", parsed.data.client_id)
+    .eq("petshop_id", membership.petshopId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!client) return { ok: false, error: "Tutor não pertence a esta loja." };
+
+  const trimmed = parsed.data.name.trim();
+  const { data: existing } = await supabase
+    .from("pets")
+    .select("id, name")
+    .eq("petshop_id", membership.petshopId)
+    .eq("client_id", parsed.data.client_id)
+    .is("deleted_at", null)
+    .ilike("name", trimmed)
+    .maybeSingle();
+  if (existing) {
+    revalidatePath("/app/calendarios");
+    return { ok: true, id: existing.id, name: existing.name };
+  }
+
+  const { data, error } = await supabase
+    .from("pets")
+    .insert({
+      petshop_id: membership.petshopId,
+      client_id: parsed.data.client_id,
+      name: trimmed,
+      species: parsed.data.species,
+      created_by: session.user.id,
+    })
+    .select("id, name")
+    .single();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/app/calendarios");
+  return { ok: true, id: data.id, name: data.name };
+}

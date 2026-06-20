@@ -74,8 +74,6 @@ export default async function CalendariosPage({
   const [
     calendarsRes,
     servicesRes,
-    vetsRes,
-    employeesRes,
     clientsRes,
     petsRes,
     schedulesHintRes,
@@ -95,20 +93,6 @@ export default async function CalendariosPage({
       .is("deleted_at", null)
       .in("area", areas)
       .order("area")
-      .order("name"),
-    supabase
-      .from("veterinarians")
-      .select("id, name, active")
-      .eq("petshop_id", membership.petshopId)
-      .eq("active", true)
-      .is("deleted_at", null)
-      .order("name"),
-    supabase
-      .from("employees")
-      .select("id, name, active")
-      .eq("petshop_id", membership.petshopId)
-      .eq("active", true)
-      .is("deleted_at", null)
       .order("name"),
     supabase
       .from("clients")
@@ -251,8 +235,6 @@ export default async function CalendariosPage({
       visibleYear={selectedParts.year}
       visibleMonth0={selectedParts.month0}
       services={services}
-      veterinarians={vetsRes.data ?? []}
-      employees={employeesRes.data ?? []}
       clients={clientsRes.data ?? []}
       pets={petsRes.data ?? []}
       schedules={schedules}

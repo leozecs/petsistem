@@ -26,17 +26,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cancelAppointment, saveAppointment } from "@/app/app/calendarios/actions";
+import {
+  cancelAppointment,
+  createClientInline,
+  createPetInline,
+  saveAppointment,
+} from "@/app/app/calendarios/actions";
+import { Combobox } from "@/components/ui/combobox";
 import {
   computeAvailability,
   type AppointmentStatus,
@@ -73,8 +71,6 @@ type Props = {
   visibleYear: number;
   visibleMonth0: number;
   services: ServiceRow[];
-  veterinarians: { id: string; name: string }[];
-  employees: { id: string; name: string }[];
   clients: { id: string; name: string; phone: string }[];
   pets: { id: string; name: string; client_id: string; species: string }[];
   schedules: ScheduleInput[];
@@ -107,12 +103,8 @@ const WEEKDAY_LABELS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const formSchema = z.object({
   service_id: z.string().uuid("Serviço obrigatório"),
   starts_at: z.string().min(1, "Horário obrigatório"),
-  client_id: z.string().uuid().optional().or(z.literal("")),
-  pet_id: z.string().uuid().optional().or(z.literal("")),
-  veterinarian_id: z.string().uuid().optional().or(z.literal("")),
-  employee_id: z.string().uuid().optional().or(z.literal("")),
-  tutor_name: z.string().trim().optional(),
-  tutor_phone: z.string().trim().optional(),
+  client_id: z.string().uuid("Tutor obrigatório"),
+  pet_id: z.string().uuid("Pet obrigatório"),
   notes: z.string().trim().optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
@@ -217,8 +209,6 @@ export function CalendariosView({
   visibleYear,
   visibleMonth0,
   services,
-  veterinarians,
-  employees,
   clients,
   pets,
   schedules,
@@ -271,13 +261,16 @@ export function CalendariosView({
       starts_at: "",
       client_id: "",
       pet_id: "",
-      veterinarian_id: "",
-      employee_id: "",
-      tutor_name: "",
-      tutor_phone: "",
       notes: "",
     },
   });
+  // Optimistically-added clients/pets created via inline server actions. Merged
+  // into the visible options so the Combobox can immediately display + select
+  // the freshly-created row without waiting for router.refresh().
+  const [extraClients, setExtraClients] = useState<{ id: string; name: string; phone: string }[]>([]);
+  const [extraPets, setExtraPets] = useState<{ id: string; name: string; client_id: string; species: string }[]>([]);
+  const mergedClients = useMemo(() => [...clients, ...extraClients], [clients, extraClients]);
+  const mergedPets = useMemo(() => [...pets, ...extraPets], [pets, extraPets]);
 
   const watchedClient = form.watch("client_id");
   const watchedService = form.watch("service_id");
@@ -286,8 +279,9 @@ export function CalendariosView({
     [servicesForArea, watchedService],
   );
   const petsForClient = useMemo(
-    () => (watchedClient ? pets.filter((p) => p.client_id === watchedClient) : []),
-    [watchedClient, pets],
+    () =>
+      watchedClient ? mergedPets.filter((p) => p.client_id === watchedClient) : [],
+    [watchedClient, mergedPets],
   );
 
   const availableSlots = useMemo(() => {
@@ -349,13 +343,48 @@ export function CalendariosView({
       starts_at: "",
       client_id: "",
       pet_id: "",
-      veterinarian_id: "",
-      employee_id: "",
-      tutor_name: "",
-      tutor_phone: "",
       notes: "",
     });
     setDialogOpen(true);
+  }
+
+  async function handleCreateClient(query: string) {
+    const result = await createClientInline(query);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setExtraClients((prev) =>
+      prev.some((c) => c.id === result.id)
+        ? prev
+        : [...prev, { id: result.id, name: result.name, phone: "" }],
+    );
+    form.setValue("client_id", result.id, { shouldValidate: true });
+    form.setValue("pet_id", "", { shouldValidate: false });
+    toast.success(`Tutor "${result.name}" cadastrado`);
+  }
+
+  async function handleCreatePet(query: string) {
+    const clientId = form.getValues("client_id");
+    if (!clientId) {
+      toast.error("Selecione ou cadastre o tutor antes do pet.");
+      return;
+    }
+    const result = await createPetInline(query, clientId, "dog");
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setExtraPets((prev) =>
+      prev.some((p) => p.id === result.id)
+        ? prev
+        : [
+            ...prev,
+            { id: result.id, name: result.name, client_id: clientId, species: "dog" },
+          ],
+    );
+    form.setValue("pet_id", result.id, { shouldValidate: true });
+    toast.success(`Pet "${result.name}" cadastrado · edite a espécie em /app/pets`);
   }
 
   function onSubmit(values: FormValues) {
@@ -370,14 +399,10 @@ export function CalendariosView({
     const fd = new FormData();
     fd.set("calendar_id", activeCalendarId);
     fd.set("service_id", values.service_id);
-    fd.set("client_id", values.client_id ?? "");
-    fd.set("pet_id", values.pet_id ?? "");
-    fd.set("veterinarian_id", values.veterinarian_id ?? "");
-    fd.set("employee_id", values.employee_id ?? "");
+    fd.set("client_id", values.client_id);
+    fd.set("pet_id", values.pet_id);
     fd.set("starts_at", startDate.toISOString());
     fd.set("ends_at", endDate.toISOString());
-    fd.set("tutor_name", values.tutor_name ?? "");
-    fd.set("tutor_phone", values.tutor_phone ?? "");
     fd.set("notes", values.notes ?? "");
 
     startTransition(async () => {
@@ -695,24 +720,22 @@ export function CalendariosView({
           >
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="service_id">Serviço</Label>
-              <Select
-                value={form.watch("service_id") || undefined}
-                onValueChange={(v) =>
-                  form.setValue("service_id", String(v ?? ""), { shouldValidate: true })
-                }
-              >
-                <SelectTrigger id="service_id" className="rounded-md">
-                  <SelectValue placeholder="Escolha o serviço" />
-                </SelectTrigger>
-                <SelectContent>
-                  {servicesForArea.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} · {s.duration_minutes} min · R${" "}
-                      {(s.price_cents / 100).toFixed(2).replace(".", ",")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                id="service_id"
+                options={servicesForArea.map((s) => ({
+                  id: s.id,
+                  label: s.name,
+                  sublabel: `${s.duration_minutes} min · R$ ${(s.price_cents / 100).toFixed(2).replace(".", ",")}`,
+                }))}
+                value={form.watch("service_id") ?? ""}
+                onChange={(id) => {
+                  form.setValue("service_id", id, { shouldValidate: true });
+                  // Reset selected slot — duration may have changed.
+                  form.setValue("starts_at", "", { shouldValidate: false });
+                }}
+                placeholder="Escolha o serviço"
+                emptyHint="Sem serviços cadastrados."
+              />
               {form.formState.errors.service_id ? (
                 <p className="text-xs text-rose-600">
                   {form.formState.errors.service_id.message}
@@ -722,35 +745,29 @@ export function CalendariosView({
 
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="starts_at">Horário disponível</Label>
-              <Select
-                value={form.watch("starts_at") || undefined}
-                onValueChange={(v) =>
-                  form.setValue("starts_at", String(v ?? ""), { shouldValidate: true })
+              <Combobox
+                id="starts_at"
+                options={availableSlots.map((slot) => {
+                  const iso = slot.start.toISOString();
+                  return {
+                    id: iso,
+                    label: `${formatHHmm(iso)} – ${formatHHmm(slot.end.toISOString())}`,
+                  };
+                })}
+                value={form.watch("starts_at") ?? ""}
+                onChange={(id) =>
+                  form.setValue("starts_at", id, { shouldValidate: true })
                 }
                 disabled={!selectedService}
-              >
-                <SelectTrigger id="starts_at" className="rounded-md">
-                  <SelectValue
-                    placeholder={
-                      selectedService
-                        ? availableSlots.length > 0
-                          ? "Escolha o horário"
-                          : "Sem horário livre nesse dia"
-                        : "Selecione o serviço primeiro"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSlots.map((slot) => {
-                    const iso = slot.start.toISOString();
-                    return (
-                      <SelectItem key={iso} value={iso}>
-                        {formatHHmm(iso)} – {formatHHmm(slot.end.toISOString())}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+                placeholder={
+                  selectedService
+                    ? availableSlots.length > 0
+                      ? "Escolha o horário"
+                      : "Sem horário livre nesse dia"
+                    : "Selecione o serviço primeiro"
+                }
+                emptyHint="Sem horários livres."
+              />
               {form.formState.errors.starts_at ? (
                 <p className="text-xs text-rose-600">
                   {form.formState.errors.starts_at.message}
@@ -759,107 +776,55 @@ export function CalendariosView({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="client_id">Tutor cadastrado</Label>
-              <Select
-                value={form.watch("client_id") || undefined}
-                onValueChange={(v) => {
-                  form.setValue("client_id", String(v ?? ""), { shouldValidate: true });
-                  form.setValue("pet_id", "", { shouldValidate: true });
+              <Label htmlFor="client_id">Tutor</Label>
+              <Combobox
+                id="client_id"
+                options={mergedClients.map((c) => ({
+                  id: c.id,
+                  label: c.name,
+                  sublabel: c.phone || undefined,
+                }))}
+                value={form.watch("client_id") ?? ""}
+                onChange={(id) => {
+                  form.setValue("client_id", id, { shouldValidate: true });
+                  form.setValue("pet_id", "", { shouldValidate: false });
                 }}
-              >
-                <SelectTrigger id="client_id" className="rounded-md">
-                  <SelectValue placeholder="Opcional" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onCreate={handleCreateClient}
+                createLabel={(q) => `Cadastrar tutor "${q}"`}
+                placeholder="Buscar ou cadastrar tutor"
+                emptyHint="Digite o nome do tutor para buscar ou cadastrar."
+              />
+              {form.formState.errors.client_id ? (
+                <p className="text-xs text-rose-600">
+                  {form.formState.errors.client_id.message}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="pet_id">Pet</Label>
-              <Select
-                value={form.watch("pet_id") || undefined}
-                onValueChange={(v) =>
-                  form.setValue("pet_id", String(v ?? ""), { shouldValidate: true })
+              <Combobox
+                id="pet_id"
+                options={petsForClient.map((p) => ({
+                  id: p.id,
+                  label: p.name,
+                  sublabel: p.species,
+                }))}
+                value={form.watch("pet_id") ?? ""}
+                onChange={(id) =>
+                  form.setValue("pet_id", id, { shouldValidate: true })
                 }
+                onCreate={handleCreatePet}
+                createLabel={(q) => `Cadastrar pet "${q}"`}
                 disabled={!watchedClient}
-              >
-                <SelectTrigger id="pet_id" className="rounded-md">
-                  <SelectValue
-                    placeholder={watchedClient ? "Selecione" : "Selecione o tutor"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {petsForClient.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} · {p.species}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {activeArea === "veterinary" ? (
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="veterinarian_id">Veterinário</Label>
-                <Select
-                  value={form.watch("veterinarian_id") || undefined}
-                  onValueChange={(v) =>
-                    form.setValue("veterinarian_id", String(v ?? ""), { shouldValidate: true })
-                  }
-                >
-                  <SelectTrigger id="veterinarian_id" className="rounded-md">
-                    <SelectValue placeholder="Sem profissional definido" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {veterinarians.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="employee_id">Profissional</Label>
-                <Select
-                  value={form.watch("employee_id") || undefined}
-                  onValueChange={(v) =>
-                    form.setValue("employee_id", String(v ?? ""), { shouldValidate: true })
-                  }
-                >
-                  <SelectTrigger id="employee_id" className="rounded-md">
-                    <SelectValue placeholder="Sem profissional definido" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="tutor_name">Tutor avulso</Label>
-              <Input id="tutor_name" placeholder="Nome do tutor" {...form.register("tutor_name")} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tutor_phone">Telefone</Label>
-              <Input
-                id="tutor_phone"
-                placeholder="(19) 99999-0000"
-                {...form.register("tutor_phone")}
+                placeholder={watchedClient ? "Buscar ou cadastrar pet" : "Selecione o tutor primeiro"}
+                emptyHint="Digite o nome do pet para buscar ou cadastrar."
               />
+              {form.formState.errors.pet_id ? (
+                <p className="text-xs text-rose-600">
+                  {form.formState.errors.pet_id.message}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2 sm:col-span-2">
