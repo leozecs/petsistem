@@ -115,7 +115,7 @@ export async function saveAppointment(
   // veterinary service id even on a grooming calendar.
   const { data: targetService, error: svcLookupErr } = await supabase
     .from("services")
-    .select("id, area, duration_minutes")
+    .select("id, area, duration_minutes, price_cents")
     .eq("id", parsed.data.service_id)
     .eq("petshop_id", membership.petshopId)
     .is("deleted_at", null)
@@ -258,10 +258,30 @@ export async function saveAppointment(
     // New appointments start at `confirmed` — counter-staff bookings are valid
     // out of the box; no separate "confirm" gate. Drag back to `pending` is not
     // exposed in the UI but the enum still supports it for legacy rows.
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from("appointments")
-      .insert({ ...payload, status: "confirmed", created_by: session.user.id });
+      .insert({ ...payload, status: "confirmed", created_by: session.user.id })
+      .select("id")
+      .single();
     if (error) return { ok: false, error: friendlyError(error.message) };
+
+    // Auto-create the charge with the service's current price. The /app/caixa
+    // page lists every unpaid charge so the operator can collect at the end of
+    // the service. Service price is frozen at booking time — later edits to
+    // services.price_cents do NOT change historical charges.
+    if (inserted) {
+      const { error: chargeErr } = await supabase
+        .from("appointment_charges")
+        .insert({
+          appointment_id: inserted.id,
+          petshop_id: membership.petshopId,
+          price_cents: targetService.price_cents,
+          created_by: session.user.id,
+        });
+      // Don't fail the booking if the charge insert hiccups — the daily caixa
+      // page can backfill via "Lançar cobrança" later. Log to console for ops.
+      if (chargeErr) console.error("appointment_charges insert failed", chargeErr);
+    }
   }
 
   revalidatePath("/app/calendarios");

@@ -14,6 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_charges: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          created_by: string | null
+          notes: string | null
+          paid_at: string | null
+          paid_by: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          petshop_id: string
+          price_cents: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          created_by?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          petshop_id: string
+          price_cents: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          created_by?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          petshop_id?: string
+          price_cents?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_charges_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_charges_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_charges_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_charges_petshop_id_fkey"
+            columns: ["petshop_id"]
+            isOneToOne: false
+            referencedRelation: "petshops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_charges_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_checklists: {
         Row: {
           appointment_id: string
@@ -841,6 +919,7 @@ export type Database = {
           id: string
           notes: string | null
           paid_at: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
           petshop_id: string
           proof_path: string | null
           updated_at: string
@@ -858,6 +937,7 @@ export type Database = {
           id?: string
           notes?: string | null
           paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
           petshop_id: string
           proof_path?: string | null
           updated_at?: string
@@ -875,6 +955,7 @@ export type Database = {
           id?: string
           notes?: string | null
           paid_at?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
           petshop_id?: string
           proof_path?: string | null
           updated_at?: string
@@ -2031,6 +2112,7 @@ export type Database = {
         | "appointment_change"
         | "checklist_step"
         | "system"
+      payment_method: "pix" | "cash" | "card" | "transfer" | "other"
       payment_status: "pending" | "confirming" | "paid" | "rejected" | "overdue"
       petshop_status: "active" | "blocked" | "trial" | "cancelled"
       service_area: "grooming" | "veterinary"
@@ -2203,6 +2285,7 @@ export const Constants = {
         "checklist_step",
         "system",
       ],
+      payment_method: ["pix", "cash", "card", "transfer", "other"],
       payment_status: ["pending", "confirming", "paid", "rejected", "overdue"],
       petshop_status: ["active", "blocked", "trial", "cancelled"],
       service_area: ["grooming", "veterinary"],
