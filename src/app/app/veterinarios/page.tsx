@@ -1,9 +1,13 @@
+import { redirect } from "next/navigation";
 import { VeterinariosManager } from "@/components/veterinarios/veterinarios-manager";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function VeterinariosPage() {
   const { membership } = await requireTenant();
+  if (!hasRole(membership, ["owner"])) {
+    redirect("/app");
+  }
   const supabase = await createClient();
 
   const { data } = supabase
@@ -15,10 +19,5 @@ export default async function VeterinariosPage() {
         .order("name", { ascending: true })
     : { data: [] };
 
-  return (
-    <VeterinariosManager
-      initialVets={data ?? []}
-      canManage={hasRole(membership, ["owner"])}
-    />
-  );
+  return <VeterinariosManager initialVets={data ?? []} />;
 }

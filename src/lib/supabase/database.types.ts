@@ -2018,6 +2018,7 @@ export type Database = {
           specialties: string[]
           updated_at: string
           updated_by: string | null
+          user_id: string | null
         }
         Insert: {
           active?: boolean
@@ -2034,6 +2035,7 @@ export type Database = {
           specialties?: string[]
           updated_at?: string
           updated_by?: string | null
+          user_id?: string | null
         }
         Update: {
           active?: boolean
@@ -2050,6 +2052,7 @@ export type Database = {
           specialties?: string[]
           updated_at?: string
           updated_by?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -2076,6 +2079,13 @@ export type Database = {
           {
             foreignKeyName: "veterinarians_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "veterinarians_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
