@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronRight as ChevronAdvance,
+  ClipboardList,
   MessageCircle,
   PenLine,
   Plus,
@@ -46,6 +47,7 @@ import {
   prevStatus,
 } from "@/lib/calendar/status";
 import { buildConfirmationMessage, buildWhatsappUrl } from "@/lib/whatsapp";
+import { ChecklistDialog } from "@/components/calendarios/checklist-dialog";
 import { Combobox } from "@/components/ui/combobox";
 import {
   computeAvailability,
@@ -234,6 +236,14 @@ export function CalendariosView({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Checklist dialog target. When set, ChecklistDialog opens for that appointment.
+  // submitLabel toggles between "Salvar e iniciar" (intercept of checked_in→in_progress)
+  // and "Salvar" (read/edit mode for already-started or finished bookings).
+  const [checklist, setChecklist] = useState<{
+    apptId: string;
+    title: string;
+    submitLabel: string;
+  } | null>(null);
 
   // Re-evaluate "today" once a minute so the highlight crosses midnight without a
   // hard reload — operators frequently leave the tab open overnight.
@@ -474,9 +484,24 @@ export function CalendariosView({
     });
   }
 
-  function handleAdvance(apptId: string, current: AppointmentStatus) {
+  function handleAdvance(apptId: string, current: AppointmentStatus, appt: ApptSummary) {
     const target = nextStatus(current);
     if (!target) return;
+    // Grooming-only intercept: the checked_in → in_progress step opens the
+    // checklist dialog instead of advancing directly. saveChecklist on the
+    // server will atomically save the row AND move status to in_progress.
+    if (
+      activeArea === "grooming" &&
+      current === "checked_in" &&
+      target === "in_progress"
+    ) {
+      setChecklist({
+        apptId,
+        title: `${appt.service_name ?? "Atendimento"} — ${appt.pet_name ?? appt.tutor_name ?? "Pet"}`,
+        submitLabel: "Salvar e iniciar",
+      });
+      return;
+    }
     startTransition(async () => {
       const result = await updateAppointmentStatus(apptId, target);
       if (result.ok) {
@@ -485,6 +510,14 @@ export function CalendariosView({
       } else {
         toast.error(result.error ?? "Erro ao atualizar status");
       }
+    });
+  }
+
+  function openChecklistRead(appt: ApptSummary) {
+    setChecklist({
+      apptId: appt.id,
+      title: `${appt.service_name ?? "Atendimento"} — ${appt.pet_name ?? appt.tutor_name ?? "Pet"}`,
+      submitLabel: "Salvar",
     });
   }
 
@@ -738,6 +771,16 @@ export function CalendariosView({
                           </p>
                         </div>
                       </div>
+                      {activeArea === "grooming" &&
+                      (a.status === "in_progress" || a.status === "finished") ? (
+                        <button
+                          onClick={() => openChecklistRead(a)}
+                          className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50"
+                        >
+                          <ClipboardList className="size-3" />
+                          Ver checklist
+                        </button>
+                      ) : null}
                       {(() => {
                         // wa.me link prefers the tutor's WhatsApp number, falls
                         // back to phone. Disabled when neither is on file.
@@ -769,7 +812,7 @@ export function CalendariosView({
                             const advanceLabel = forwardLabel(a.status);
                             return advanceLabel ? (
                               <button
-                                onClick={() => handleAdvance(a.id, a.status)}
+                                onClick={() => handleAdvance(a.id, a.status, a)}
                                 disabled={pending}
                                 className="inline-flex items-center gap-1 rounded-md bg-zinc-950 px-2 py-1 text-[0.6875rem] font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60"
                               >
@@ -1005,6 +1048,17 @@ export function CalendariosView({
           )}
         </DialogContent>
       </Dialog>
+
+      <ChecklistDialog
+        appointmentId={checklist?.apptId ?? null}
+        title={checklist?.title ?? ""}
+        open={checklist !== null}
+        onOpenChange={(o) => {
+          if (!o) setChecklist(null);
+        }}
+        submitLabel={checklist?.submitLabel}
+        onSaved={() => router.refresh()}
+      />
     </motion.div>
   );
 }

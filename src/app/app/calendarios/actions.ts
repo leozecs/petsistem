@@ -388,6 +388,128 @@ export async function createClientInline(
   return { ok: true, id: data.id, name: data.name };
 }
 
+const checklistSchema = z.object({
+  appointment_id: z.string().uuid(),
+  products: z.array(z.string().trim().min(1).max(60)).max(40),
+  arrival_condition: z.string().trim().max(40).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+export type ChecklistRow = {
+  appointment_id: string;
+  products: string[];
+  arrival_condition: string | null;
+  notes: string | null;
+};
+
+/**
+ * Read the checklist for an appointment. Grooming-only by contract — the caller
+ * is responsible for showing the UI only for grooming rows. Server still
+ * verifies tenant membership before returning the row.
+ */
+export async function getChecklist(
+  appointmentId: string,
+): Promise<{ ok: true; data: ChecklistRow | null } | { ok: false; error: string }> {
+  const { membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant", "veterinarian"])) {
+    return { ok: false, error: "Sem permissão." };
+  }
+  if (!z.string().uuid().safeParse(appointmentId).success) {
+    return { ok: false, error: "ID inválido." };
+  }
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  const { data, error } = await supabase
+    .from("appointment_checklists")
+    .select("appointment_id, products, arrival_condition, notes")
+    .eq("appointment_id", appointmentId)
+    .eq("petshop_id", membership.petshopId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: data ?? null };
+}
+
+/**
+ * Upsert the checklist AND advance the appointment status to `in_progress` in
+ * one operator action. Grooming-only: rejected if the appointment lives in a
+ * veterinary calendar. RLS would refuse a cross-tenant insert anyway; we also
+ * verify here so we can return a friendly error.
+ *
+ * Status transition: only fired when current is `checked_in` (forward step) or
+ * `in_progress` (idempotent — re-saving the checklist mid-service is allowed).
+ */
+export async function saveChecklist(
+  appointmentId: string,
+  products: string[],
+  arrivalCondition: string | null,
+  notes: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant"])) {
+    return { ok: false, error: "Sem permissão para preencher o checklist." };
+  }
+
+  const parsed = checklistSchema.safeParse({
+    appointment_id: appointmentId,
+    products: products.map((p) => p.trim()).filter(Boolean),
+    arrival_condition: arrivalCondition?.trim() || undefined,
+    notes: notes?.trim() || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  // Load appointment + calendar.area + current status. Grooming-only gate is
+  // enforced here because RLS does not inspect the joined calendar row.
+  const { data: appt, error: lookupErr } = await supabase
+    .from("appointments")
+    .select("id, status, calendar:calendars!inner(area)")
+    .eq("id", parsed.data.appointment_id)
+    .eq("petshop_id", membership.petshopId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (lookupErr) return { ok: false, error: lookupErr.message };
+  if (!appt) return { ok: false, error: "Agendamento não encontrado." };
+  const area = (appt.calendar as { area: ServiceArea } | null)?.area;
+  if (area !== "grooming") {
+    return { ok: false, error: "Checklist é exclusivo de Banho e Tosa." };
+  }
+
+  // Idempotent upsert keyed by appointment_id (primary key).
+  const { error: upsertErr } = await supabase
+    .from("appointment_checklists")
+    .upsert(
+      {
+        appointment_id: parsed.data.appointment_id,
+        petshop_id: membership.petshopId,
+        products: parsed.data.products,
+        arrival_condition: parsed.data.arrival_condition ?? null,
+        notes: parsed.data.notes ?? null,
+        updated_by: session.user.id,
+      },
+      { onConflict: "appointment_id" },
+    );
+  if (upsertErr) return { ok: false, error: upsertErr.message };
+
+  // Advance status if we're crossing the start line. Re-saves mid-service
+  // (status already `in_progress`) leave status alone but still update the row.
+  if (appt.status === "checked_in") {
+    const { error: statusErr } = await supabase
+      .from("appointments")
+      .update({ status: "in_progress", updated_by: session.user.id })
+      .eq("id", parsed.data.appointment_id)
+      .eq("petshop_id", membership.petshopId);
+    if (statusErr) return { ok: false, error: statusErr.message };
+  }
+
+  revalidatePath("/app/calendarios");
+  return { ok: true };
+}
+
 const createPetSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório").max(80),
   client_id: z.string().uuid("Tutor obrigatório"),

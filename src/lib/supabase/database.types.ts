@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -14,6 +14,71 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_checklists: {
+        Row: {
+          appointment_id: string
+          arrival_condition: string | null
+          created_at: string
+          created_by: string | null
+          notes: string | null
+          petshop_id: string
+          products: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          appointment_id: string
+          arrival_condition?: string | null
+          created_at?: string
+          created_by?: string | null
+          notes?: string | null
+          petshop_id: string
+          products?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          arrival_condition?: string | null
+          created_at?: string
+          created_by?: string | null
+          notes?: string | null
+          petshop_id?: string
+          products?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_checklists_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_checklists_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_checklists_petshop_id_fkey"
+            columns: ["petshop_id"]
+            isOneToOne: false
+            referencedRelation: "petshops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_checklists_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           calendar_id: string
@@ -2151,3 +2216,4 @@ export const Constants = {
     },
   },
 } as const
+
