@@ -157,6 +157,77 @@ export type Database = {
           },
         ]
       }
+      appointment_records: {
+        Row: {
+          anamnesis: string | null
+          appointment_id: string
+          chief_complaint: string | null
+          created_at: string
+          created_by: string | null
+          diagnosis: string | null
+          petshop_id: string
+          physical_exam: string | null
+          plan: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          anamnesis?: string | null
+          appointment_id: string
+          chief_complaint?: string | null
+          created_at?: string
+          created_by?: string | null
+          diagnosis?: string | null
+          petshop_id: string
+          physical_exam?: string | null
+          plan?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          anamnesis?: string | null
+          appointment_id?: string
+          chief_complaint?: string | null
+          created_at?: string
+          created_by?: string | null
+          diagnosis?: string | null
+          petshop_id?: string
+          physical_exam?: string | null
+          plan?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_records_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_records_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_records_petshop_id_fkey"
+            columns: ["petshop_id"]
+            isOneToOne: false
+            referencedRelation: "petshops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_records_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           calendar_id: string

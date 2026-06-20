@@ -48,6 +48,7 @@ import {
 } from "@/lib/calendar/status";
 import { buildConfirmationMessage, buildWhatsappUrl } from "@/lib/whatsapp";
 import { ChecklistDialog } from "@/components/calendarios/checklist-dialog";
+import { RecordDialog } from "@/components/calendarios/record-dialog";
 import { Combobox } from "@/components/ui/combobox";
 import {
   computeAvailability,
@@ -240,6 +241,12 @@ export function CalendariosView({
   // submitLabel toggles between "Salvar e iniciar" (intercept of checked_in→in_progress)
   // and "Salvar" (read/edit mode for already-started or finished bookings).
   const [checklist, setChecklist] = useState<{
+    apptId: string;
+    title: string;
+    submitLabel: string;
+  } | null>(null);
+  // Prontuário (área veterinária) — mesmo padrão do checklist.
+  const [record, setRecord] = useState<{
     apptId: string;
     title: string;
     submitLabel: string;
@@ -502,6 +509,19 @@ export function CalendariosView({
       });
       return;
     }
+    // Veterinary intercept: opens prontuário at the same lifecycle moment.
+    if (
+      activeArea === "veterinary" &&
+      current === "checked_in" &&
+      target === "in_progress"
+    ) {
+      setRecord({
+        apptId,
+        title: `${appt.service_name ?? "Atendimento"} — ${appt.pet_name ?? appt.tutor_name ?? "Pet"}`,
+        submitLabel: "Salvar e iniciar",
+      });
+      return;
+    }
     startTransition(async () => {
       const result = await updateAppointmentStatus(apptId, target);
       if (result.ok) {
@@ -515,6 +535,14 @@ export function CalendariosView({
 
   function openChecklistRead(appt: ApptSummary) {
     setChecklist({
+      apptId: appt.id,
+      title: `${appt.service_name ?? "Atendimento"} — ${appt.pet_name ?? appt.tutor_name ?? "Pet"}`,
+      submitLabel: "Salvar",
+    });
+  }
+
+  function openRecordRead(appt: ApptSummary) {
+    setRecord({
       apptId: appt.id,
       title: `${appt.service_name ?? "Atendimento"} — ${appt.pet_name ?? appt.tutor_name ?? "Pet"}`,
       submitLabel: "Salvar",
@@ -779,6 +807,16 @@ export function CalendariosView({
                         >
                           <ClipboardList className="size-3" />
                           Ver checklist
+                        </button>
+                      ) : null}
+                      {activeArea === "veterinary" &&
+                      (a.status === "in_progress" || a.status === "finished") ? (
+                        <button
+                          onClick={() => openRecordRead(a)}
+                          className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50"
+                        >
+                          <ClipboardList className="size-3" />
+                          Ver prontuário
                         </button>
                       ) : null}
                       {(() => {
@@ -1057,6 +1095,17 @@ export function CalendariosView({
           if (!o) setChecklist(null);
         }}
         submitLabel={checklist?.submitLabel}
+        onSaved={() => router.refresh()}
+      />
+
+      <RecordDialog
+        appointmentId={record?.apptId ?? null}
+        title={record?.title ?? ""}
+        open={record !== null}
+        onOpenChange={(o) => {
+          if (!o) setRecord(null);
+        }}
+        submitLabel={record?.submitLabel}
         onSaved={() => router.refresh()}
       />
     </motion.div>

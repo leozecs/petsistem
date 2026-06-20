@@ -350,6 +350,135 @@ function friendlyError(raw: string): string {
   return raw;
 }
 
+// ---------------------------------------------------------------------------
+// Prontuário veterinário (1:1 com appointment, área vet only)
+// ---------------------------------------------------------------------------
+
+const recordSchema = z.object({
+  appointment_id: z.string().uuid(),
+  chief_complaint: z.string().trim().max(1000).optional(),
+  anamnesis: z.string().trim().max(4000).optional(),
+  physical_exam: z.string().trim().max(4000).optional(),
+  diagnosis: z.string().trim().max(2000).optional(),
+  plan: z.string().trim().max(4000).optional(),
+});
+
+export type RecordRow = {
+  appointment_id: string;
+  chief_complaint: string | null;
+  anamnesis: string | null;
+  physical_exam: string | null;
+  diagnosis: string | null;
+  plan: string | null;
+};
+
+/**
+ * Read the prontuário for an appointment. Veterinary-only by contract — the
+ * caller is responsible for showing the UI only for vet rows. The server still
+ * verifies tenant membership.
+ */
+export async function getRecord(
+  appointmentId: string,
+): Promise<{ ok: true; data: RecordRow | null } | { ok: false; error: string }> {
+  const { membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "veterinarian"])) {
+    return { ok: false, error: "Sem permissão." };
+  }
+  if (!z.string().uuid().safeParse(appointmentId).success) {
+    return { ok: false, error: "ID inválido." };
+  }
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  const { data, error } = await supabase
+    .from("appointment_records")
+    .select("appointment_id, chief_complaint, anamnesis, physical_exam, diagnosis, plan")
+    .eq("appointment_id", appointmentId)
+    .eq("petshop_id", membership.petshopId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: data ?? null };
+}
+
+/**
+ * Upsert prontuário AND advance status to in_progress when crossing from
+ * checked_in. Mirror of saveChecklist but veterinary-only. Re-saves mid-service
+ * leave status alone but still bump updated_by.
+ */
+export async function saveRecord(
+  appointmentId: string,
+  payload: {
+    chief_complaint: string | null;
+    anamnesis: string | null;
+    physical_exam: string | null;
+    diagnosis: string | null;
+    plan: string | null;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "veterinarian"])) {
+    return { ok: false, error: "Sem permissão." };
+  }
+
+  const parsed = recordSchema.safeParse({
+    appointment_id: appointmentId,
+    chief_complaint: payload.chief_complaint?.trim() || undefined,
+    anamnesis: payload.anamnesis?.trim() || undefined,
+    physical_exam: payload.physical_exam?.trim() || undefined,
+    diagnosis: payload.diagnosis?.trim() || undefined,
+    plan: payload.plan?.trim() || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  const { data: appt, error: lookupErr } = await supabase
+    .from("appointments")
+    .select("id, status, calendar:calendars!inner(area)")
+    .eq("id", parsed.data.appointment_id)
+    .eq("petshop_id", membership.petshopId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (lookupErr) return { ok: false, error: lookupErr.message };
+  if (!appt) return { ok: false, error: "Agendamento não encontrado." };
+  const area = (appt.calendar as { area: ServiceArea } | null)?.area;
+  if (area !== "veterinary") {
+    return { ok: false, error: "Prontuário é exclusivo da Veterinária." };
+  }
+
+  const { error: upsertErr } = await supabase
+    .from("appointment_records")
+    .upsert(
+      {
+        appointment_id: parsed.data.appointment_id,
+        petshop_id: membership.petshopId,
+        chief_complaint: parsed.data.chief_complaint ?? null,
+        anamnesis: parsed.data.anamnesis ?? null,
+        physical_exam: parsed.data.physical_exam ?? null,
+        diagnosis: parsed.data.diagnosis ?? null,
+        plan: parsed.data.plan ?? null,
+        updated_by: session.user.id,
+      },
+      { onConflict: "appointment_id" },
+    );
+  if (upsertErr) return { ok: false, error: upsertErr.message };
+
+  if (appt.status === "checked_in") {
+    const { error: statusErr } = await supabase
+      .from("appointments")
+      .update({ status: "in_progress", updated_by: session.user.id })
+      .eq("id", parsed.data.appointment_id)
+      .eq("petshop_id", membership.petshopId);
+    if (statusErr) return { ok: false, error: statusErr.message };
+  }
+
+  revalidatePath("/app/calendarios");
+  return { ok: true };
+}
+
 const createClientSchema = z.object({
   name: z.string().trim().min(2, "Nome muito curto").max(120),
   phone: z.string().trim().max(40).optional(),
