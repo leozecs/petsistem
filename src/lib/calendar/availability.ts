@@ -47,8 +47,23 @@ export const DEFAULT_SCHEDULES: ScheduleInput[] = [1, 2, 3, 4, 5, 6].map((d) => 
   active: true,
 }));
 
+/**
+ * Per-weekday fallback: keeps every explicit (active) schedule the tenant has
+ * configured AND fills in default 08:00-18:00 for every weekday Mon-Sat that
+ * has no explicit row. Sunday stays closed unless explicitly configured.
+ *
+ * Examples:
+ *   []                         → Mon-Sat 08:00-18:00 (all defaults)
+ *   [Mon 09:00-19:00]          → Mon 09:00-19:00, Tue-Sat 08:00-18:00 default
+ *   [Sun 10:00-14:00]          → Sun explicit, Mon-Sat 08:00-18:00 default
+ *   [Mon-Sat 09:00-19:00 each] → returned as-is (all 6 weekdays already set)
+ */
 export function effectiveSchedules(schedules: ScheduleInput[]): ScheduleInput[] {
-  return schedules.length > 0 ? schedules : DEFAULT_SCHEDULES;
+  const activeWeekdays = new Set(
+    schedules.filter((s) => s.active).map((s) => s.weekday),
+  );
+  const fillers = DEFAULT_SCHEDULES.filter((d) => !activeWeekdays.has(d.weekday));
+  return [...schedules, ...fillers];
 }
 
 export type AvailabilityInput = {
