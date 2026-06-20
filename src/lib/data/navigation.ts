@@ -6,7 +6,6 @@ import {
   CreditCard,
   FileBarChart,
   HeartPulse,
-  PawPrint,
   Receipt,
   Scissors,
   Settings,
@@ -39,8 +38,7 @@ export const adminMasterNav: NavItem[] = [
 export const ownerNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
   { href: "/app/calendarios", label: "Calendários", icon: CalendarCheck },
-  { href: "/app/clientes", label: "Clientes", icon: Users },
-  { href: "/app/pets", label: "Pets", icon: PawPrint },
+  { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
   { href: "/app/funcionarios", label: "Funcionários", icon: UserCog },
   { href: "/app/veterinarios", label: "Veterinários", icon: Stethoscope },
   { href: "/app/servicos", label: "Serviços", icon: Scissors },
@@ -54,15 +52,14 @@ export const ownerNav: NavItem[] = [
 export const attendantNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
   { href: "/app/calendarios", label: "Agenda Banho e Tosa", icon: CalendarCheck },
-  { href: "/app/clientes", label: "Clientes", icon: Users },
-  { href: "/app/pets", label: "Pets", icon: PawPrint },
+  { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
   { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
 ];
 
 export const veterinarianNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
   { href: "/app/calendarios", label: "Calendário Veterinário", icon: HeartPulse },
-  { href: "/app/pets", label: "Pets", icon: PawPrint },
+  { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
 ];
 
 export function navigationForSession(session: SessionContext): NavItem[] {

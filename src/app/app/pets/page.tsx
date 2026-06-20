@@ -1,35 +1,8 @@
-import { PetsManager } from "@/components/pets/pets-manager";
-import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
-import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
-export default async function PetsPage() {
-  const { membership } = await requireTenant();
-  const supabase = await createClient();
-
-  if (!supabase) {
-    return <PetsManager initialPets={[]} clientsForSelect={[]} canManage={false} />;
-  }
-
-  const [petsResult, clientsResult] = await Promise.all([
-    supabase
-      .from("pets")
-      .select("*, client:clients(id, name)")
-      .eq("petshop_id", membership.petshopId)
-      .is("deleted_at", null)
-      .order("name", { ascending: true }),
-    supabase
-      .from("clients")
-      .select("id, name")
-      .eq("petshop_id", membership.petshopId)
-      .is("deleted_at", null)
-      .order("name", { ascending: true }),
-  ]);
-
-  return (
-    <PetsManager
-      initialPets={petsResult.data ?? []}
-      clientsForSelect={clientsResult.data ?? []}
-      canManage={hasRole(membership, ["owner", "attendant"])}
-    />
-  );
+// Pets are managed inline within the Tutores & Pets page (unified CRUD).
+// Keep this route as a redirect so existing bookmarks and the nav link of
+// veterinarian-role users still land on a valid page.
+export default function PetsRedirectPage() {
+  redirect("/app/clientes");
 }

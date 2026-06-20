@@ -103,7 +103,7 @@ export async function savePet(_prev: PetFormState, formData: FormData): Promise<
     if (error) return { ok: false, error: error.message };
   }
 
-  revalidatePath("/app/pets");
+  revalidatePath("/app/clientes");
   return { ok: true };
 }
 
@@ -126,6 +126,6 @@ export async function deletePet(id: string): Promise<{ ok: boolean; error?: stri
     .is("deleted_at", null);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/app/pets");
+  revalidatePath("/app/clientes");
   return { ok: true };
 }

@@ -1,44 +1,41 @@
-import { UserPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { SectionHeading } from "@/components/app/section-heading";
-import { clients } from "@/lib/data/demo";
+import {
+  ClientesPetsManager,
+  type ClientWithPets,
+} from "@/components/clientes/clientes-pets-manager";
+import { hasRole, requireTenant } from "@/lib/auth/require-tenant";
+import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 
-export default function ClientsPage() {
+type PetRow = Database["public"]["Tables"]["pets"]["Row"];
+
+export default async function ClientesPage() {
+  const { membership } = await requireTenant();
+  const supabase = await createClient();
+
+  if (!supabase) {
+    return <ClientesPetsManager clients={[]} canManage={false} />;
+  }
+
+  // Single round-trip: pull clients + their pets via an embed.
+  const { data } = await supabase
+    .from("clients")
+    .select("*, pets:pets(*)")
+    .eq("petshop_id", membership.petshopId)
+    .is("deleted_at", null)
+    .order("name", { ascending: true });
+
+  // The pets embed includes soft-deleted rows by default; filter client-side.
+  const clients: ClientWithPets[] = (data ?? []).map((c) => ({
+    ...c,
+    pets: ((c.pets as PetRow[] | null) ?? [])
+      .filter((p) => p.deleted_at === null)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  }));
+
   return (
-    <div>
-      <SectionHeading
-        title="Clientes"
-        description="CRUD de tutores com telefone, WhatsApp, email e endereço."
-        action={<Button className="rounded-md bg-zinc-950 text-white hover:bg-zinc-800"><UserPlus className="size-4" />Novo cliente</Button>}
-      />
-      <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-          <Table className="min-w-[620px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Telefone</TableHead>
-                <TableHead>Pets</TableHead>
-                <TableHead>Última visita</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map((client) => (
-                <TableRow key={client.phone}>
-                  <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell>{client.phone}</TableCell>
-                  <TableCell>{client.pets}</TableCell>
-                  <TableCell>{client.lastVisit}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <ClientesPetsManager
+      clients={clients}
+      canManage={hasRole(membership, ["owner", "attendant"])}
+    />
   );
 }
