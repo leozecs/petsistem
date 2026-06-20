@@ -842,6 +842,7 @@ export type Database = {
           role: Database["public"]["Enums"]["member_role"]
           updated_at: string
           updated_by: string | null
+          user_id: string | null
         }
         Insert: {
           active?: boolean
@@ -858,6 +859,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["member_role"]
           updated_at?: string
           updated_by?: string | null
+          user_id?: string | null
         }
         Update: {
           active?: boolean
@@ -874,6 +876,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["member_role"]
           updated_at?: string
           updated_by?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -900,6 +903,13 @@ export type Database = {
           {
             foreignKeyName: "employees_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
