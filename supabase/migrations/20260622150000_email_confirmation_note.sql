@@ -1,0 +1,23 @@
+-- Phase 12: Email confirmation ON
+--
+-- Esse arquivo é apenas documentação — não roda SQL (a config de Auth fica
+-- fora do schema do projeto, gerenciada pelo painel).
+--
+-- AÇÃO MANUAL EXIGIDA NO PAINEL DO SUPABASE:
+--   1. Acessar https://supabase.com/dashboard/project/<project-ref>/auth/providers
+--   2. Em "Email" → ativar "Confirm email"
+--   3. Em "Email Templates" → ajustar template "Confirm signup" pro tom de voz
+--      do produto (assunto: "Confirme seu cadastro no PETSISTEM"; corpo curto
+--      com o {{ .ConfirmationURL }})
+--   4. Configurar SMTP customizado (Settings → Auth → SMTP) pra mensagens
+--      saírem do seu domínio. Sem isso o Supabase usa o servidor compartilhado
+--      com limite baixo de envio.
+--
+-- Com a config ON, o signupTenant action (que usa admin.createUser com
+-- email_confirm: false) faz o Supabase mandar email automaticamente; o usuário
+-- só consegue logar depois de clicar no link.
+--
+-- O sinal de erro do login (auth-actions.ts) intercepta "email not confirmed"
+-- e redireciona pra /login?error=email-not-confirmed com instrução amigável.
+
+select 'noop' as note;

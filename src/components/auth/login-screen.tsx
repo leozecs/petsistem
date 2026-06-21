@@ -16,6 +16,8 @@ const errorMessages: Record<string, string> = {
   "tenant-blocked": "Sua loja esta bloqueada. Procure o Admin Master.",
   "session-required": "Faca login para continuar.",
   "not-authorized": "Voce nao tem permissao para acessar essa area.",
+  "email-not-confirmed":
+    "Confirme seu email antes de entrar. Clica no link que a gente mandou pra voce — ou pede reenvio em /signup/success.",
 };
 
 export function LoginScreen({ error }: { error?: string }) {

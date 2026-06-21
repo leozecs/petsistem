@@ -19,6 +19,10 @@ export async function signIn(formData: FormData) {
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
+    // Supabase distingue email não confirmado por código 400 + mensagem específica.
+    if (error.message?.toLowerCase().includes("not confirmed")) {
+      redirect(`/login?error=email-not-confirmed&email=${encodeURIComponent(email)}`);
+    }
     redirect("/login?error=invalid-credentials");
   }
 
