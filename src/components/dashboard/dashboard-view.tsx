@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   ArrowRight,
+  Ban,
   CalendarCheck,
   CalendarDays,
   CheckCircle2,
@@ -19,6 +22,10 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeading } from "@/components/app/section-heading";
+import {
+  cancelAppointment,
+  updateAppointmentStatus,
+} from "@/app/app/calendarios/actions";
 import type { Database } from "@/lib/supabase/database.types";
 
 type ServiceArea = Database["public"]["Enums"]["service_area"];
@@ -79,7 +86,34 @@ export function DashboardView({
   upcoming,
   alerts,
 }: Props) {
+  const router = useRouter();
+  const [pendingTx, startTransition] = useTransition();
   const saldo = kpis.receivedCents - kpis.expensesCents;
+
+  function handleConfirm(apptId: string) {
+    startTransition(async () => {
+      const result = await updateAppointmentStatus(apptId, "confirmed");
+      if (result.ok) {
+        toast.success("Agendamento confirmado");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao confirmar");
+      }
+    });
+  }
+
+  function handleCancel(apptId: string) {
+    if (!confirm("Cancelar esta solicitação? O tutor não será mais atendido.")) return;
+    startTransition(async () => {
+      const result = await cancelAppointment(apptId);
+      if (result.ok) {
+        toast.success("Solicitação cancelada");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao cancelar");
+      }
+    });
+  }
 
   const alertCount =
     alerts.pending.length +
@@ -313,22 +347,74 @@ export function DashboardView({
               <span className="ml-auto text-xs text-zinc-500">{alertCount}</span>
             </div>
 
-            <AlertBlock
-              title="Pendentes sem confirmação"
-              empty="Tudo confirmado."
-              count={alerts.pending.length}
-            >
-              {alerts.pending.slice(0, 5).map((a) => (
-                <li key={a.id} className="flex items-center gap-2 py-1.5 text-xs">
-                  <span className="font-mono text-zinc-700">
-                    {HHMM.format(new Date(a.startIso))}
+            {/* Pendentes — bloco destacado quando há solicitações novas do site público */}
+            {alerts.pending.length > 0 ? (
+              <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="relative flex size-2.5">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex size-2.5 rounded-full bg-amber-500" />
                   </span>
-                  <span className="truncate text-zinc-900">
-                    {a.serviceName ?? "Serviço"} · {a.petName ?? a.tutorName ?? "—"}
+                  <p className="text-sm font-bold text-amber-950">
+                    Solicitações pendentes
+                  </p>
+                  <span className="ml-auto rounded-full bg-amber-600 px-2 py-0.5 text-xs font-bold text-white">
+                    {alerts.pending.length}
                   </span>
-                </li>
-              ))}
-            </AlertBlock>
+                </div>
+                <ul className="space-y-2">
+                  {alerts.pending.slice(0, 5).map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex flex-wrap items-center gap-2 rounded-md bg-white p-2"
+                    >
+                      <span className="font-mono text-xs font-medium text-zinc-700">
+                        {HHMM.format(new Date(a.startIso))}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-zinc-900">
+                          {a.serviceName ?? "Serviço"}
+                        </p>
+                        <p className="truncate text-[0.6875rem] text-zinc-500">
+                          {a.petName ?? a.tutorName ?? "—"}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirm(a.id)}
+                          disabled={pendingTx}
+                          className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-[0.6875rem] font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          <CheckCircle2 className="size-3" />
+                          Confirmar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCancel(a.id)}
+                          disabled={pendingTx}
+                          className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
+                        >
+                          <Ban className="size-3" />
+                          Recusar
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {alerts.pending.length > 5 ? (
+                  <p className="mt-2 text-[0.6875rem] text-amber-800">
+                    + {alerts.pending.length - 5} outra(s) no calendário
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <AlertBlock
+                title="Pendentes sem confirmação"
+                empty="Tudo confirmado."
+                count={0}
+              />
+            )}
 
             {canSeeFinance ? (
               <AlertBlock
