@@ -23,22 +23,21 @@ export default function SignupPage() {
         </div>
 
         <h1 className="mt-6 text-3xl font-semibold tracking-tight">
-          O cadastro automático está chegando
+          Cadastro automático chega em alguns dias
         </h1>
         <p className="mt-4 text-sm leading-7 text-zinc-400">
-          Em poucos dias você poderá criar sua loja em segundos, direto por
-          aqui. Enquanto isso, manda uma mensagem que a gente abre sua conta
-          manualmente — geralmente em menos de 1 hora.
+          Por enquanto a gente abre sua loja na mão. É rápido — manda uma
+          mensagem que te respondemos no mesmo dia.
         </p>
 
         <a
-          href="https://wa.me/5519999990000?text=Quero%20criar%20minha%20loja%20no%20PETSISTEM"
+          href="https://wa.me/5519999990000?text=Quero%20abrir%20minha%20loja%20no%20PETSISTEM"
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-8 inline-flex items-center gap-2 rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100"
+          className="mt-8 inline-flex items-center gap-2 rounded-md bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300"
         >
           <MessageCircle className="size-4" />
-          Falar com a gente
+          Chamar no WhatsApp
         </a>
 
         <div className="mt-10">

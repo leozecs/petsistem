@@ -1,18 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Host-based router for the multi-surface deployment:
+ * Host-based router:
  *
- *   <slug>.petsistem.com.br/<path>     → /loja/<slug>/<path>   (tenant booking)
- *   app.petsistem.com.br/<path>        → /<path>                (signed-in app)
- *   petsistem.com.br/                  → /marketing              (public landing)
- *   petsistem.com.br/<known path>      → /<path>                 (e.g. /signup, /login)
+ *   <slug>.petsistem.com.br/<path>   → /loja/<slug>/<path>   (tenant booking)
+ *   petsistem.com.br/                 → /marketing            (public landing)
+ *   petsistem.com.br/login            → /login                (sign in)
+ *   petsistem.com.br/signup           → /signup               (cadastro)
+ *   petsistem.com.br/app              → /app                  (painel autenticado)
+ *   petsistem.com.br/admin-master     → /admin-master         (admin)
  *
- * `app`, `admin`, `www` etc are reserved subdomains — they pass through the
- * tenant detection so /login, /app, /admin-master stay untouched.
- *
- * In dev (localhost:3000) the apex behaves like the marketing surface so you
- * can iterate on the landing without faking DNS.
+ * Toda a interface autenticada mora no apex (petsistem.com.br). Subdomínios
+ * reservados (app, admin, www, etc) continuam passando direto pra preservar
+ * URLs históricas, mas não são o caminho preferido — basta acessar o apex.
  */
 
 const ROOT_DOMAINS = (
