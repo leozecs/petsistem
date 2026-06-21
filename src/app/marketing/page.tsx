@@ -132,37 +132,37 @@ export default async function MarketingPage() {
       style={{ fontFamily: "var(--font-hanken), ui-sans-serif, system-ui" }}
     >
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-zinc-200/70 bg-[#f7f5ef]/85 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-zinc-800/60 bg-zinc-950/90 text-[#f7f5ef] backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-3">
             <div className="flex h-7 w-32 items-center overflow-hidden">
-              <PetsistemLogo tone="dark" className="w-32" />
+              <PetsistemLogo tone="light" className="w-32" />
             </div>
           </Link>
           <nav
-            className="hidden items-center gap-7 text-sm text-zinc-600 sm:flex"
+            className="hidden items-center gap-7 text-sm text-zinc-300 sm:flex"
             style={{ fontFamily: "var(--font-hanken)" }}
           >
-            <Link href="#rotina" className="transition hover:text-zinc-950">
+            <Link href="#rotina" className="transition hover:text-white">
               Como funciona
             </Link>
-            <Link href="#planos" className="transition hover:text-zinc-950">
+            <Link href="#planos" className="transition hover:text-white">
               Planos
             </Link>
-            <Link href="#duvidas" className="transition hover:text-zinc-950">
+            <Link href="#duvidas" className="transition hover:text-white">
               Dúvidas
             </Link>
           </nav>
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="hidden rounded-full px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:text-zinc-950 sm:inline-flex"
+              className="hidden rounded-full px-3 py-1.5 text-sm font-medium text-zinc-300 transition hover:text-white sm:inline-flex"
             >
               Entrar
             </Link>
             <Link
               href="/signup"
-              className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-4 py-2 text-sm font-semibold text-[#f7f5ef] transition hover:bg-zinc-800"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#f7f5ef] px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-white"
             >
               Criar grátis
               <ArrowUpRight className="size-3.5" />
