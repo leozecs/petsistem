@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 import { LoginScreen } from "@/components/auth/login-screen";
 import { getSession } from "@/lib/auth/session";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; until?: string }>;
+}) {
   const params = await searchParams;
   const session = await getSession();
 
@@ -15,5 +19,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     }
   }
 
-  return <LoginScreen error={params.error} />;
+  return <LoginScreen error={params.error} until={params.until} />;
 }

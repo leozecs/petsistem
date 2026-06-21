@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/auth-actions";
 import { PetsistemLogo } from "@/components/brand/logo";
 import { LoginSubmitButton } from "@/components/auth/login-submit-button";
+import { RateLimitBanner } from "@/components/auth/rate-limit-banner";
 
 const errorMessages: Record<string, string> = {
   "invalid-credentials": "Email ou senha invalidos.",
@@ -18,10 +19,23 @@ const errorMessages: Record<string, string> = {
   "not-authorized": "Voce nao tem permissao para acessar essa area.",
   "email-not-confirmed":
     "Confirme seu email antes de entrar. Clica no link que a gente mandou pra voce — ou pede reenvio em /signup/success.",
+  "rate-limited": "Muitas tentativas. Aguarde alguns minutos.",
 };
 
-export function LoginScreen({ error }: { error?: string }) {
-  const errorMessage = error ? (errorMessages[error] ?? "Nao foi possivel concluir o login.") : null;
+export function LoginScreen({
+  error,
+  until,
+}: {
+  error?: string;
+  until?: string;
+}) {
+  const isRateLimited =
+    error === "rate-limited" && until && new Date(until).getTime() > Date.now();
+  // Pula a mensagem genérica quando estamos exibindo o banner de countdown.
+  const errorMessage =
+    error && !isRateLimited
+      ? errorMessages[error] ?? "Nao foi possivel concluir o login."
+      : null;
 
   return (
     <main className="grid min-h-[100dvh] bg-zinc-100 text-zinc-950 lg:grid-cols-[1fr_0.9fr]">
@@ -48,32 +62,35 @@ export function LoginScreen({ error }: { error?: string }) {
                   {errorMessage}
                 </div>
               ) : null}
+              {isRateLimited && until ? <RateLimitBanner untilIso={until} /> : null}
               <form action={signIn} className="mt-8 space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="seu@email.com"
-                    className="rounded-md"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="Sua senha"
-                    className="rounded-md"
-                    required
-                  />
-                </div>
-                <LoginSubmitButton />
+                <fieldset disabled={Boolean(isRateLimited)} className="space-y-5 disabled:opacity-60">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="seu@email.com"
+                      className="rounded-md"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Senha</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      autoComplete="current-password"
+                      placeholder="Sua senha"
+                      className="rounded-md"
+                      required
+                    />
+                  </div>
+                  <LoginSubmitButton />
+                </fieldset>
               </form>
               <div className="mt-5 rounded-lg bg-zinc-50 p-4 text-sm leading-6 text-zinc-600">
                 Ao configurar o Supabase, a rota <code className="font-mono text-zinc-950">/api/setup/admin-master</code>{" "}

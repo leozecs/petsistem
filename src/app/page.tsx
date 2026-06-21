@@ -8,7 +8,7 @@ import { getSession } from "@/lib/auth/session";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; until?: string }>;
 }) {
   const params = await searchParams;
   const session = await getSession();
@@ -20,5 +20,5 @@ export default async function Home({
       redirect("/app");
     }
   }
-  return <LoginScreen error={params.error} />;
+  return <LoginScreen error={params.error} until={params.until} />;
 }

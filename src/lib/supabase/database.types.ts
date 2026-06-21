@@ -1073,6 +1073,30 @@ export type Database = {
           },
         ]
       }
+      login_attempts: {
+        Row: {
+          attempted_at: string
+          email: string
+          id: number
+          ip: string | null
+          succeeded: boolean
+        }
+        Insert: {
+          attempted_at?: string
+          email: string
+          id?: number
+          ip?: string | null
+          succeeded?: boolean
+        }
+        Update: {
+          attempted_at?: string
+          email?: string
+          id?: number
+          ip?: string | null
+          succeeded?: boolean
+        }
+        Relationships: []
+      }
       memberships: {
         Row: {
           created_at: string
