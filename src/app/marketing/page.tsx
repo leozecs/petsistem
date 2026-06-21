@@ -245,44 +245,43 @@ export default async function MarketingPage() {
                   petgres.petsistem.com.br
                 </p>
               </div>
-              <div className="grid grid-cols-[88px_1fr] divide-x divide-zinc-100">
-                <ul className="py-4 text-[11px] text-zinc-400">
+              <div className="grid grid-cols-[60px_1fr] divide-x divide-zinc-100">
+                <ul className="text-[10px] text-zinc-400">
                   {["08", "09", "10", "11", "12", "13", "14"].map((h) => (
-                    <li key={h} className="px-3 py-2 text-right tabular-nums">
+                    <li
+                      key={h}
+                      className="flex h-12 items-start justify-end px-2 pt-1 tabular-nums"
+                    >
                       {h}:00
                     </li>
                   ))}
                 </ul>
-                <div className="relative py-4">
-                  <div className="absolute inset-x-3 top-[12px] h-12 rounded-md border border-emerald-700/20 bg-emerald-700/[0.07] px-3 py-1.5">
+                <div className="relative h-[336px]">
+                  <div className="absolute inset-x-2 top-[24px] h-[44px] rounded-md border border-emerald-700/20 bg-emerald-700/[0.10] px-2.5 py-1.5">
                     <p className="text-[11px] font-semibold text-emerald-900">
                       Banho · Mel (Yorkshire)
                     </p>
                     <p className="text-[10px] text-emerald-800/80">
-                      08h30, com Bruna
+                      08h30 com Bruna
                     </p>
                   </div>
-                  <div className="absolute inset-x-3 top-[88px] h-16 rounded-md border border-rose-300/40 bg-rose-100 px-3 py-1.5">
-                    <p className="text-[11px] font-semibold text-rose-900">
+                  <div className="absolute inset-x-2 top-[72px] h-[36px] rounded-md border border-rose-300/50 bg-rose-100 px-2.5 py-1">
+                    <p className="text-[11px] font-semibold leading-tight text-rose-900">
                       Tosa higiênica · Tobias
                     </p>
-                    <p className="text-[10px] text-rose-800/80">
-                      09h15 · Carla
-                    </p>
+                    <p className="text-[10px] text-rose-800/80">09h15 com Carla</p>
                   </div>
-                  <div className="absolute inset-x-3 top-[180px] h-20 rounded-md border border-sky-300/50 bg-sky-100 px-3 py-1.5">
+                  <div className="absolute inset-x-2 top-[144px] h-[56px] rounded-md border border-sky-300/50 bg-sky-100 px-2.5 py-1.5">
                     <p className="text-[11px] font-semibold text-sky-900">
                       Consulta vet · Filó
                     </p>
-                    <p className="text-[10px] text-sky-800/80">
-                      11h00 · Dr. Rafael
-                    </p>
+                    <p className="text-[10px] text-sky-800/80">11h00 · Dr. Rafael</p>
                     <p className="mt-0.5 text-[10px] text-sky-800/60">
                       Vacinação V10
                     </p>
                   </div>
-                  <div className="absolute inset-x-3 top-[296px] h-12 rounded-md border border-amber-300/60 bg-amber-100/80 px-3 py-1.5">
-                    <p className="text-[11px] font-semibold text-amber-900">
+                  <div className="absolute inset-x-2 top-[264px] h-[36px] rounded-md border border-amber-300/70 bg-amber-100 px-2.5 py-1">
+                    <p className="text-[11px] font-semibold leading-tight text-amber-900">
                       Pedido do site · aguarda confirmar
                     </p>
                     <p className="text-[10px] text-amber-800/80">
@@ -490,20 +489,21 @@ export default async function MarketingPage() {
                         {p.description ?? ""}
                       </p>
 
-                      <p className="mt-5 flex items-end gap-1.5">
+                      <p className="mt-5 flex items-end gap-1 whitespace-nowrap">
                         <span
                           className="font-medium tracking-tight"
                           style={{
                             fontFamily: "var(--font-bricolage)",
-                            fontSize: "2.4rem",
+                            fontSize: "2rem",
                             lineHeight: 1,
+                            fontVariationSettings: "'wdth' 90",
                           }}
                         >
                           {formatBRL(p.priceCents)}
                         </span>
                         <span
                           className={
-                            "pb-1 text-[13px] " +
+                            "pb-0.5 text-[12px] " +
                             (isRecommended ? "text-emerald-100" : "text-zinc-500")
                           }
                         >
