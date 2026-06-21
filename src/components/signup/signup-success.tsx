@@ -68,7 +68,7 @@ export function SignupSuccess({ email }: { email: string }) {
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-400" />
-            <span>O link expira em 24h — clica logo</span>
+            <span>O link expira em 24h. Clica logo!</span>
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-400" />

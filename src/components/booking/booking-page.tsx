@@ -285,8 +285,8 @@ export function BookingPage({
             Agende o cuidado do seu pet
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-zinc-600 sm:text-base">
-            Em poucos toques. Escolha o serviço, o dia e o horário disponível —
-            confirmamos pelo WhatsApp.
+            Em poucos toques. Escolha o serviço, o dia e o horário disponível.
+            A gente confirma pelo WhatsApp.
           </p>
         </div>
 

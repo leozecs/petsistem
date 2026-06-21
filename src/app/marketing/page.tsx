@@ -37,7 +37,7 @@ const dayMoments = [
   {
     when: "07h42",
     actor: "Tutora · pelo WhatsApp",
-    line: "Marina, dá pra encaixar a Mel pro banho hoje à tarde?",
+    line: "Bruna, dá pra encaixar a Mel pro banho hoje à tarde?",
     answer: "Manda esse link. Ela escolhe horário, você confirma no painel.",
     link: "petgres.petsistem.com.br/agendar",
   },
@@ -57,24 +57,24 @@ const dayMoments = [
     when: "19h00",
     actor: "Dona · fechamento",
     line: "Quanto entrou hoje? Quem ainda deve?",
-    answer: "Caixa do dia conta sozinho. Pix, cartão, dinheiro — tudo somado.",
+    answer: "Caixa do dia conta sozinho. Pix, cartão, dinheiro. Tudo somado.",
   },
 ];
 
 const testimonials = [
   {
-    name: "Marina Costa",
-    role: "Dona · Petgres, Campinas",
+    name: "Bruna Curcia",
+    role: "Dona, Petgres, São Paulo",
     text: "Em duas semanas a gente parou de perder horário. Os tutores agendam sozinhos pelo nosso link e a equipe inteira tá no painel.",
   },
   {
     name: "Dr. Rafael Lima",
-    role: "Veterinário · Clínica Vida Animal",
+    role: "Veterinário, Clínica Vida Animal",
     text: "O prontuário tá tudo organizado por animal. Abro no celular dentro do consultório. Mudou meu dia.",
   },
   {
     name: "Carla Mendes",
-    role: "Tosadora · Pet & Cia",
+    role: "Tosadora, Pet & Cia",
     text: "O checklist com produto usado é o que faltava. A dona vê o que rolou em cada banho sem precisar perguntar.",
   },
 ];
@@ -82,11 +82,11 @@ const testimonials = [
 const faqs = [
   {
     q: "Preciso instalar alguma coisa?",
-    a: "Nada. Tudo roda no navegador — celular, tablet ou computador. Atualização chega sem você fazer nada.",
+    a: "Nada. Tudo roda no navegador, seja celular, tablet ou computador. As atualizações chegam sozinhas, você não precisa fazer nada.",
   },
   {
     q: "É seguro?",
-    a: "Sim. Infraestrutura Supabase + Vercel (mesmas plataformas que rodam empresas grandes), backup diário e separação total entre cada loja.",
+    a: "Sim. Rodamos em Supabase e Vercel, as mesmas plataformas que empresas grandes usam. Tem backup diário e separação total entre cada loja.",
   },
   {
     q: "Como funciona o teste grátis?",
@@ -171,7 +171,7 @@ export default async function MarketingPage() {
         </div>
       </header>
 
-      {/* Hero — assimétrico, alinhado à esquerda, mockup forte à direita */}
+      {/* Hero */}
       <section className="relative overflow-hidden">
         {/* Carimbo de paw print discreto, sem floating ícone genérico */}
         <div
@@ -229,7 +229,7 @@ export default async function MarketingPage() {
             </p>
           </div>
 
-          {/* Mockup real da agenda — não é gradient block, é o produto */}
+          {/* Mockup da agenda */}
           <div className="relative">
             <div
               aria-hidden
@@ -259,7 +259,7 @@ export default async function MarketingPage() {
                       Banho · Mel (Yorkshire)
                     </p>
                     <p className="text-[10px] text-emerald-800/80">
-                      08h30 · Marina
+                      08h30, com Bruna
                     </p>
                   </div>
                   <div className="absolute inset-x-3 top-[88px] h-16 rounded-md border border-rose-300/40 bg-rose-100 px-3 py-1.5">
@@ -319,7 +319,7 @@ export default async function MarketingPage() {
               </div>
             </div>
             <div className="mt-3 text-right text-[11px] text-zinc-500">
-              Imagem ilustrativa da agenda · produto real igual
+              Imagem ilustrativa da agenda. O produto real é igualzinho.
             </div>
           </div>
         </div>
@@ -329,14 +329,14 @@ export default async function MarketingPage() {
       <section className="border-y border-zinc-200/70 bg-white/40 py-8">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-4 text-[13px] text-zinc-500 sm:px-6">
           <p className="font-medium text-zinc-700">Usam o PETSISTEM:</p>
-          <span>Petgres · Campinas</span>
-          <span>Vida Animal · São Carlos</span>
-          <span>Pet & Cia · Sorocaba</span>
-          <span>Clínica Quatro Patas · Bauru</span>
+          <span>Petgres, São Paulo</span>
+          <span>Vida Animal, São Carlos</span>
+          <span>Pet &amp; Cia, Sorocaba</span>
+          <span>Clínica Quatro Patas, Bauru</span>
         </div>
       </section>
 
-      {/* Rotina — 4 momentos do dia, não 6 cards de feature */}
+      {/* Rotina */}
       <section id="rotina" className="py-24 sm:py-32">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
@@ -353,8 +353,8 @@ export default async function MarketingPage() {
                 className="mt-6 max-w-md text-[15px] leading-7 text-zinc-700"
                 style={{ fontFamily: "var(--font-hanken)" }}
               >
-                O sistema foi desenhado ouvindo dono, atendente e veterinário —
-                não é uma cópia de ERP genérico. A gente cortou tudo que ninguém
+                O sistema foi desenhado ouvindo dono, atendente e veterinário.
+                Não é cópia de ERP genérico. A gente cortou tudo que ninguém
                 usa e deixou só o que aparece no balcão.
               </p>
               <Link
@@ -426,7 +426,7 @@ export default async function MarketingPage() {
           </p>
           <p className="mt-8 flex items-center gap-3 text-sm text-emerald-100">
             <span className="h-px w-8 bg-emerald-300/60" />
-            Marina Costa · dona da Petgres, Campinas
+            Bruna Curcia, dona da Petgres, São Paulo
           </p>
         </div>
       </section>
@@ -455,46 +455,47 @@ export default async function MarketingPage() {
             {plans.length === 0 ? (
               <p className="text-sm text-zinc-500">Planos em breve.</p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid items-stretch gap-4 sm:grid-cols-3">
                 {plans.map((p, i) => {
                   const isRecommended = i === recommendedIdx;
                   return (
                     <div
                       key={p.code}
                       className={
-                        "flex flex-col rounded-2xl border p-6 transition " +
+                        "relative flex flex-col rounded-2xl border p-6 transition " +
                         (isRecommended
-                          ? "-translate-y-4 border-emerald-800/20 bg-emerald-800 text-[#f7f5ef] shadow-[0_24px_50px_-12px_rgba(6,78,59,0.35)]"
+                          ? "border-emerald-800/20 bg-emerald-800 text-[#f7f5ef] shadow-[0_24px_50px_-12px_rgba(6,78,59,0.35)] sm:-translate-y-4"
                           : "border-zinc-200 bg-white text-zinc-950 hover:-translate-y-1")
                       }
                     >
-                      <div className="flex items-baseline justify-between">
-                        <h3
-                          className="text-lg font-medium tracking-tight"
-                          style={{ fontFamily: "var(--font-bricolage)" }}
-                        >
-                          {p.name}
-                        </h3>
-                        {isRecommended ? (
-                          <span className="rounded-full bg-[#f7f5ef] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-900">
-                            Mais escolhido
-                          </span>
-                        ) : null}
-                      </div>
+                      {isRecommended ? (
+                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#f7f5ef] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-900 shadow-sm">
+                          Mais escolhido
+                        </span>
+                      ) : null}
+
+                      <h3
+                        className="text-lg font-medium tracking-tight"
+                        style={{ fontFamily: "var(--font-bricolage)" }}
+                      >
+                        {p.name}
+                      </h3>
+
                       <p
                         className={
-                          "mt-1 text-[12.5px] leading-5 " +
+                          "mt-1.5 min-h-[3.25rem] text-[12.5px] leading-5 " +
                           (isRecommended ? "text-emerald-100" : "text-zinc-500")
                         }
                       >
-                        {p.description ?? "—"}
+                        {p.description ?? ""}
                       </p>
-                      <p className="mt-7 flex items-end gap-1.5">
+
+                      <p className="mt-5 flex items-end gap-1.5">
                         <span
                           className="font-medium tracking-tight"
                           style={{
                             fontFamily: "var(--font-bricolage)",
-                            fontSize: "2.6rem",
+                            fontSize: "2.4rem",
                             lineHeight: 1,
                           }}
                         >
@@ -509,45 +510,46 @@ export default async function MarketingPage() {
                           /mês
                         </span>
                       </p>
+
                       <ul
                         className={
-                          "mt-7 space-y-2.5 text-[13.5px] " +
+                          "mt-6 flex-1 space-y-2.5 text-[13.5px] " +
                           (isRecommended ? "text-emerald-50" : "text-zinc-700")
                         }
                       >
-                        <li className="flex items-center gap-2.5">
+                        <li className="flex items-start gap-2.5">
                           <Check
                             className={
-                              "size-3.5 shrink-0 " +
+                              "mt-0.5 size-3.5 shrink-0 " +
                               (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
                             }
                             strokeWidth={3}
                           />
-                          Até {p.maxUsers} pessoas usando
+                          <span>Até {p.maxUsers} pessoas usando</span>
                         </li>
-                        <li className="flex items-center gap-2.5">
+                        <li className="flex items-start gap-2.5">
                           <Check
                             className={
-                              "size-3.5 shrink-0 " +
+                              "mt-0.5 size-3.5 shrink-0 " +
                               (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
                             }
                             strokeWidth={3}
                           />
-                          Agenda online no seu link
+                          <span>Agenda online no seu link</span>
                         </li>
-                        <li className="flex items-center gap-2.5">
+                        <li className="flex items-start gap-2.5">
                           <Check
                             className={
-                              "size-3.5 shrink-0 " +
+                              "mt-0.5 size-3.5 shrink-0 " +
                               (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
                             }
                             strokeWidth={3}
                           />
-                          Caixa do dia + relatório do mês
+                          <span>Caixa do dia e relatório do mês</span>
                         </li>
                         <li
                           className={
-                            "flex items-center gap-2.5 " +
+                            "flex items-start gap-2.5 " +
                             (p.allowsVet
                               ? ""
                               : isRecommended
@@ -558,7 +560,7 @@ export default async function MarketingPage() {
                           {p.allowsVet ? (
                             <Check
                               className={
-                                "size-3.5 shrink-0 " +
+                                "mt-0.5 size-3.5 shrink-0 " +
                                 (isRecommended
                                   ? "text-[#f7f5ef]"
                                   : "text-emerald-800")
@@ -566,15 +568,16 @@ export default async function MarketingPage() {
                               strokeWidth={3}
                             />
                           ) : (
-                            <Minus className="size-3.5 shrink-0" strokeWidth={3} />
+                            <Minus className="mt-0.5 size-3.5 shrink-0" strokeWidth={3} />
                           )}
-                          Agenda do veterinário + prontuário
+                          <span>Agenda do veterinário e prontuário</span>
                         </li>
                       </ul>
+
                       <Link
                         href={`/signup?plan=${p.code}`}
                         className={
-                          "mt-9 inline-flex w-full items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition " +
+                          "mt-8 inline-flex w-full items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition " +
                           (isRecommended
                             ? "bg-[#f7f5ef] text-emerald-900 hover:bg-white"
                             : "bg-zinc-950 text-[#f7f5ef] hover:bg-zinc-800")
@@ -592,14 +595,14 @@ export default async function MarketingPage() {
         </div>
       </section>
 
-      {/* Testimonials — fichinha, não card uniforme */}
+      {/* Testimonials */}
       <section className="border-t border-zinc-200/70 bg-white/50 py-24 sm:py-32">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <h2
             className="max-w-2xl text-balance text-3xl font-medium leading-[1.1] tracking-[-0.02em] text-zinc-950 sm:text-[2.5rem]"
             style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 85" }}
           >
-            Quem opera todo dia — dono, atendente, vet.
+            Quem opera todo dia: dono, atendente e veterinário.
           </h2>
           <div className="mt-14 grid gap-6 md:grid-cols-3">
             {testimonials.map((t, i) => (
@@ -658,7 +661,7 @@ export default async function MarketingPage() {
         </div>
       </section>
 
-      {/* CTA final — bem grande, sem firula */}
+      {/* CTA final */}
       <section className="bg-zinc-950 py-24 text-[#f7f5ef] sm:py-32">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <h2
@@ -670,8 +673,8 @@ export default async function MarketingPage() {
             <span className="italic text-emerald-300">em dez minutos.</span>
           </h2>
           <p className="mt-7 max-w-lg text-[15.5px] leading-7 text-zinc-300">
-            Cadastra a loja, escolhe os serviços, manda o link pro tutor. A gente
-            cuida do resto — você cuida do bichinho.
+            Cadastra a loja, escolhe os serviços e manda o link pro tutor. A gente
+            cuida do resto. Você cuida do bichinho.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link

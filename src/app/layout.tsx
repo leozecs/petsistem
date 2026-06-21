@@ -18,6 +18,7 @@ const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
   subsets: ["latin"],
   display: "swap",
+  axes: ["wdth"],
 });
 
 const hanken = Hanken_Grotesk({
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0F172A",
+  themeColor: "#f7f5ef",
   width: "device-width",
   initialScale: 1,
 };

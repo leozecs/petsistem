@@ -9,16 +9,16 @@ import { LoginSubmitButton } from "@/components/auth/login-submit-button";
 import { RateLimitBanner } from "@/components/auth/rate-limit-banner";
 
 const errorMessages: Record<string, string> = {
-  "invalid-credentials": "Email ou senha invalidos.",
+  "invalid-credentials": "Email ou senha inválidos.",
   "missing-fields": "Informe email e senha para continuar.",
-  "supabase-not-configured": "Supabase nao esta configurado neste ambiente.",
-  "profile-missing": "Sessao criada mas o perfil nao foi encontrado no banco.",
-  "no-tenant": "Seu usuario nao esta vinculado a nenhuma loja ativa.",
-  "tenant-blocked": "Sua loja esta bloqueada. Procure o Admin Master.",
-  "session-required": "Faca login para continuar.",
-  "not-authorized": "Voce nao tem permissao para acessar essa area.",
+  "supabase-not-configured": "Supabase não está configurado neste ambiente.",
+  "profile-missing": "Sessão criada, mas o perfil não foi encontrado no banco.",
+  "no-tenant": "Seu usuário não está vinculado a nenhuma loja ativa.",
+  "tenant-blocked": "Sua loja está bloqueada. Procure o Admin Master.",
+  "session-required": "Faça login para continuar.",
+  "not-authorized": "Você não tem permissão para acessar essa área.",
   "email-not-confirmed":
-    "Confirme seu email antes de entrar. Clica no link que a gente mandou pra voce — ou pede reenvio em /signup/success.",
+    "Confirme seu email antes de entrar. Clica no link que a gente mandou pra você ou pede reenvio em /signup/success.",
   "rate-limited": "Muitas tentativas. Aguarde alguns minutos.",
 };
 
@@ -55,7 +55,7 @@ export function LoginScreen({
               </div>
               <h1 className="mt-6 text-3xl font-semibold tracking-tight">Entrar no PETSISTEM</h1>
               <p className="mt-3 text-sm leading-6 text-zinc-600">
-                Use seu acesso de Admin Master, dono, atendente ou veterinario para entrar no painel.
+                Use seu acesso de Admin Master, dono, atendente ou veterinário para entrar no painel.
               </p>
               {errorMessage ? (
                 <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
@@ -94,7 +94,7 @@ export function LoginScreen({
               </form>
               <div className="mt-5 rounded-lg bg-zinc-50 p-4 text-sm leading-6 text-zinc-600">
                 Ao configurar o Supabase, a rota <code className="font-mono text-zinc-950">/api/setup/admin-master</code>{" "}
-                cria ou atualiza este usuario como Admin Master.
+                cria ou atualiza este usuário como Admin Master.
               </div>
             </CardContent>
           </Card>

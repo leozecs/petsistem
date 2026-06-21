@@ -290,7 +290,7 @@ export function SignupForm() {
                 <div>
                   <p className="font-semibold">Subdomínio próprio</p>
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    A gente já cria um endereço pra sua loja — você troca depois
+                    A gente já cria um endereço pra sua loja. Você troca depois
                     se quiser.
                   </p>
                 </div>
@@ -314,8 +314,8 @@ export function SignupForm() {
                 <div>
                   <p className="font-semibold">Você como dono</p>
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    Cadastra atendentes e veterinários no painel de Funcionários
-                    — cada um ganha login automático.
+                    Cadastra atendentes e veterinários no painel de Funcionários.
+                    Cada um ganha login automático.
                   </p>
                 </div>
               </li>
