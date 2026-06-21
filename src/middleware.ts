@@ -1,18 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Tenant subdomain router.
+ * Host-based router for the multi-surface deployment:
  *
- * Maps `<slug>.petsistem.com.br/<path>` → `/loja/<slug>/<path>` so the existing
- * tenant-public app under `app/loja/[slug]/...` serves the slug without needing
- * a separate URL surface. Path-based access (`petsistem.com.br/loja/<slug>`)
- * continues to work for backward compatibility.
+ *   <slug>.petsistem.com.br/<path>     → /loja/<slug>/<path>   (tenant booking)
+ *   app.petsistem.com.br/<path>        → /<path>                (signed-in app)
+ *   petsistem.com.br/                  → /marketing              (public landing)
+ *   petsistem.com.br/<known path>      → /<path>                 (e.g. /signup, /login)
  *
- * Subdomains that are PART OF THE APP itself (`app`, `admin`, `www`, etc.) are
- * NOT rewritten — they pass through so /login, /app, /admin-master remain.
+ * `app`, `admin`, `www` etc are reserved subdomains — they pass through the
+ * tenant detection so /login, /app, /admin-master stay untouched.
  *
- * Dev mode: `<slug>.localhost:3000` works the same way because Next strips the
- * port when reading host.
+ * In dev (localhost:3000) the apex behaves like the marketing surface so you
+ * can iterate on the landing without faking DNS.
  */
 
 const ROOT_DOMAINS = (
@@ -35,44 +35,63 @@ const RESERVED = new Set([
   "blog",
 ]);
 
-function extractSubdomain(host: string): string | null {
-  // Strip port (localhost:3000 → localhost)
+// Paths that should always render at the apex even when the user types them
+// directly — never get rewritten to /marketing.
+const APEX_APP_PATHS = new Set([
+  "/login",
+  "/signup",
+  "/marketing",
+]);
+
+type HostKind =
+  | { kind: "tenant"; slug: string }
+  | { kind: "app" } // app.petsistem.com.br
+  | { kind: "apex" } // petsistem.com.br (or localhost)
+  | { kind: "unknown" }; // unrecognized host — pass through
+
+function classifyHost(host: string): HostKind {
   const bare = host.toLowerCase().split(":")[0]!;
   for (const root of ROOT_DOMAINS) {
-    if (bare === root) return null;
+    if (bare === root) return { kind: "apex" };
     if (bare.endsWith("." + root)) {
       const sub = bare.slice(0, -1 - root.length);
-      // Vercel preview deployments produce hashes like `branch-app-...vercel.app`;
-      // we don't want to treat those as tenant slugs. Skip when only one dot-less
-      // label remains, but the label looks like a hash.
-      if (RESERVED.has(sub)) return null;
-      // No multi-level subdomains.
-      if (sub.includes(".")) return null;
-      return sub;
+      if (sub.includes(".")) return { kind: "unknown" };
+      if (sub === "app") return { kind: "app" };
+      if (RESERVED.has(sub)) return { kind: "unknown" };
+      return { kind: "tenant", slug: sub };
     }
   }
-  return null;
+  return { kind: "unknown" };
 }
 
 export function middleware(req: NextRequest) {
   const url = req.nextUrl;
-  // Static assets and Next internals are matched out by `config.matcher` below,
-  // so we only ever process page requests here.
   const host = req.headers.get("host") ?? "";
-  const sub = extractSubdomain(host);
-  if (!sub) return NextResponse.next();
+  const cls = classifyHost(host);
 
-  // Already on a `/loja/...` URL means a direct path-based access; don't double
-  // rewrite. Same for the marketing surface (`/login` etc) — we only rewrite
-  // when the path is at the tenant root or an unknown path.
-  if (url.pathname.startsWith("/loja/")) return NextResponse.next();
+  if (cls.kind === "tenant") {
+    if (url.pathname.startsWith("/loja/")) return NextResponse.next();
+    const rewritten = url.clone();
+    rewritten.pathname = `/loja/${cls.slug}${url.pathname === "/" ? "" : url.pathname}`;
+    return NextResponse.rewrite(rewritten);
+  }
 
-  const rewritten = url.clone();
-  rewritten.pathname = `/loja/${sub}${url.pathname === "/" ? "" : url.pathname}`;
-  return NextResponse.rewrite(rewritten);
+  if (cls.kind === "apex") {
+    // Apex root → marketing landing. Other apex paths (e.g. /login, /signup,
+    // /api/...) still render normally.
+    if (url.pathname === "/") {
+      const rewritten = url.clone();
+      rewritten.pathname = "/marketing";
+      return NextResponse.rewrite(rewritten);
+    }
+    if (APEX_APP_PATHS.has(url.pathname)) return NextResponse.next();
+    return NextResponse.next();
+  }
+
+  // app subdomain or anything else — pass through unchanged.
+  return NextResponse.next();
 }
 
 export const config = {
-  // Skip static assets, the favicon, image optimisation, and API routes.
   matcher: ["/((?!_next|api|.*\\..*).*)"],
 };
