@@ -4,9 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  ExternalLink,
   Globe,
   Image as ImageIcon,
-  Info,
   Mail,
   MapPin,
   Palette,
@@ -164,23 +164,38 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
 
         {/* GERAL */}
         <TabsContent value="general" className="space-y-4">
-          {/* Subdomínio readonly */}
-          <Card className="rounded-lg border-amber-200 bg-amber-50 shadow-none">
-            <CardContent className="flex items-start gap-3 p-4 text-sm text-amber-900">
-              <Info className="mt-0.5 size-4 shrink-0" />
-              <div>
-                <p>
-                  <Globe className="mr-1 inline size-3.5" />
-                  Subdomínio:{" "}
-                  <span className="font-mono font-semibold">
+          {/* Domínio público da loja */}
+          <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
+            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+              <div className="flex items-start gap-3">
+                <div
+                  className="flex size-10 items-center justify-center rounded-md"
+                  style={{ backgroundColor: `${petshop.primaryColor}15`, color: petshop.primaryColor }}
+                >
+                  <Globe className="size-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-zinc-950">
+                    Seu domínio
+                  </p>
+                  <p className="font-mono text-xs text-zinc-600">
                     {petshop.subdomain}.{rootDomain}
-                  </span>
-                </p>
-                <p className="mt-1 text-xs text-amber-800">
-                  O subdomínio não pode ser alterado por aqui (mudar quebraria os
-                  links já compartilhados). Para trocar, contate o suporte.
-                </p>
+                  </p>
+                  <p className="mt-1 text-[0.6875rem] text-zinc-500">
+                    Para trocar, contate o suporte (mudar quebraria links já
+                    compartilhados).
+                  </p>
+                </div>
               </div>
+              <a
+                href={`https://${petshop.subdomain}.${rootDomain}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
+              >
+                <ExternalLink className="size-4" />
+                Abrir landing
+              </a>
             </CardContent>
           </Card>
 
