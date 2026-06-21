@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { PetsistemLogo } from "@/components/brand/logo";
@@ -377,22 +378,17 @@ export function BookingPage({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Select
-                      value={serviceId || undefined}
-                      onValueChange={(v) => setServiceId(String(v ?? ""))}
-                    >
-                      <SelectTrigger className="rounded-md">
-                        <SelectValue placeholder="Escolha o serviço" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {servicesForArea.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name} · {s.durationMinutes} min ·{" "}
-                            {formatBRL(s.priceCents)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Combobox
+                      options={servicesForArea.map((s) => ({
+                        id: s.id,
+                        label: s.name,
+                        sublabel: `${s.durationMinutes} min · ${formatBRL(s.priceCents)}`,
+                      }))}
+                      value={serviceId}
+                      onChange={setServiceId}
+                      placeholder="Escolha o serviço"
+                      emptyHint="Nenhum serviço disponível."
+                    />
                     {selectedService?.description ? (
                       <p className="text-xs text-zinc-500">
                         {selectedService.description}
@@ -448,31 +444,22 @@ export function BookingPage({
                         Nenhum horário disponível para esse dia. Tente outro.
                       </p>
                     ) : (
-                      <Select
-                        value={selectedSlot || undefined}
-                        onValueChange={(v) => setSelectedSlot(String(v ?? ""))}
-                      >
-                        <SelectTrigger className="rounded-md">
-                          <SelectValue placeholder="Escolha o horário" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-72">
-                          {slots.map((iso) => {
-                            const hhmm = iso.split("T")[1] ?? iso;
-                            const next = (() => {
-                              const [h, m] = hhmm.split(":").map(Number);
-                              const total = (h ?? 0) * 60 + (m ?? 0) + 30;
-                              const nh = String(Math.floor(total / 60)).padStart(2, "0");
-                              const nm = String(total % 60).padStart(2, "0");
-                              return `${nh}:${nm}`;
-                            })();
-                            return (
-                              <SelectItem key={iso} value={iso}>
-                                {hhmm} às {next}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        options={slots.map((iso) => {
+                          const hhmm = iso.split("T")[1] ?? iso;
+                          const next = (() => {
+                            const [h, m] = hhmm.split(":").map(Number);
+                            const total = (h ?? 0) * 60 + (m ?? 0) + 30;
+                            const nh = String(Math.floor(total / 60)).padStart(2, "0");
+                            const nm = String(total % 60).padStart(2, "0");
+                            return `${nh}:${nm}`;
+                          })();
+                          return { id: iso, label: `${hhmm} às ${next}` };
+                        })}
+                        value={selectedSlot}
+                        onChange={setSelectedSlot}
+                        placeholder="Escolha o horário"
+                      />
                     )}
                   </div>
 

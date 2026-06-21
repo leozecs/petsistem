@@ -65,9 +65,12 @@ export default async function AppDashboardPage() {
   const todayParts = petshopDateOf(todayMidnight);
   const todayIso = `${todayParts.year}-${String(todayParts.month0 + 1).padStart(2, "0")}-${String(todayParts.day).padStart(2, "0")}`;
 
-  // Pull every appointment that starts today within the caller's allowed areas,
-  // including each row's calendar.area so we can filter client-side.
-  const [todayApptRes, expensesRes, tomorrowApptRes, overdueRes] = await Promise.all([
+  // Solicitações do site público entram com status `pending` e podem ser pra
+  // qualquer data futura. Buscamos até 14 dias à frente — caso comum:
+  // operador abre o dashboard e quer confirmar/recusar tudo que chegou.
+  const fourteenDaysAhead = addMinutes(todayMidnight, 14 * 24 * 60);
+
+  const [todayApptRes, expensesRes, tomorrowApptRes, overdueRes, futurePendingRes] = await Promise.all([
     supabase
       .from("appointments")
       .select(
@@ -102,6 +105,17 @@ export default async function AppDashboardPage() {
       .gte("appointment.starts_at", addMinutes(todayMidnight, -7 * 24 * 60).toISOString())
       .order("appointment(starts_at)", { ascending: false })
       .limit(20),
+    supabase
+      .from("appointments")
+      .select(
+        "id, starts_at, ends_at, status, pet:pets(name), service:services(name), tutor_name, client:clients(name), calendar:calendars!inner(area)",
+      )
+      .eq("petshop_id", membership.petshopId)
+      .eq("status", "pending")
+      .gte("starts_at", todayMidnight.toISOString())
+      .lt("starts_at", fourteenDaysAhead.toISOString())
+      .is("deleted_at", null)
+      .order("starts_at"),
   ]);
 
   type RawAppt = {
@@ -185,8 +199,10 @@ export default async function AppDashboardPage() {
       priceCents: o.price_cents,
     }));
 
-  const pendingToday = todayAppts
-    .filter((a) => a.status === "pending")
+  // Pendentes considera os próximos 14 dias — não só hoje. Solicitações que
+  // vieram pelo site público costumam ser pra dias futuros.
+  const pendingFuture = ((futurePendingRes.data ?? []) as RawAppt[])
+    .filter((a) => a.calendar !== null && areas.includes(a.calendar.area))
     .map(toDashboardAppt);
 
   return (
@@ -203,7 +219,7 @@ export default async function AppDashboardPage() {
       inProgress={inProgress}
       upcoming={upcoming}
       alerts={{
-        pending: pendingToday,
+        pending: pendingFuture,
         overduePayments,
         emptyTomorrow: tomorrowCount === 0,
       }}

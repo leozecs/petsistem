@@ -63,6 +63,12 @@ type Props = {
   };
 };
 
+const SHORT_DATE = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "America/Sao_Paulo",
+});
+
 const HHMM = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
@@ -368,9 +374,14 @@ export function DashboardView({
                       key={a.id}
                       className="flex flex-wrap items-center gap-2 rounded-md bg-white p-2"
                     >
-                      <span className="font-mono text-xs font-medium text-zinc-700">
-                        {HHMM.format(new Date(a.startIso))}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className="font-mono text-[0.6875rem] font-medium text-amber-800">
+                          {SHORT_DATE.format(new Date(a.startIso))}
+                        </span>
+                        <span className="font-mono text-xs font-medium text-zinc-700">
+                          {HHMM.format(new Date(a.startIso))}
+                        </span>
+                      </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-medium text-zinc-900">
                           {a.serviceName ?? "Serviço"}
