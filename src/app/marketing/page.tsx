@@ -1,21 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  ArrowRight,
-  Calendar,
-  CheckCircle2,
-  CreditCard,
-  Heart,
-  MessageCircle,
-  PawPrint,
-  Scissors,
-  ShieldCheck,
-  Smartphone,
-  Sparkles,
-  Stethoscope,
-  Store,
-  Users,
-  Zap,
+  ArrowUpRight,
+  Check,
+  Minus,
 } from "lucide-react";
 import { PetsistemLogo } from "@/components/brand/logo";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -35,68 +23,58 @@ type PlanLite = {
   description: string | null;
 };
 
-const features = [
+function formatBRL(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 0,
+  });
+}
+
+// Rotina real, escrita pelo cliente. Cada bloco mostra um momento concreto
+// do dia do petshop em vez de um card genérico de feature.
+const dayMoments = [
   {
-    icon: Calendar,
-    accent: "from-emerald-500/20 to-emerald-500/0",
-    iconColor: "text-emerald-400",
-    title: "Tutor agenda direto no site",
-    text: "Seu petshop ganha um link próprio (sualoja.petsistem.com.br). O tutor escolhe dia e hora, você só confirma. Acabou ligação.",
+    when: "07h42",
+    actor: "Tutora · pelo WhatsApp",
+    line: "Marina, dá pra encaixar a Mel pro banho hoje à tarde?",
+    answer: "Manda esse link. Ela escolhe horário, você confirma no painel.",
+    link: "petgres.petsistem.com.br/agendar",
   },
   {
-    icon: Scissors,
-    accent: "from-rose-500/20 to-rose-500/0",
-    iconColor: "text-rose-400",
-    title: "Banho e tosa organizado",
-    text: "Checklist com produtos usados, condição na chegada, observações pro tutor. Cada banho fica registrado pra sempre.",
+    when: "10h15",
+    actor: "Atendente · checkin do bichinho",
+    line: "Chegou a Mel. Tá com nó atrás da orelha.",
+    answer: "Marca no checklist, anexa foto, salva. O tutor vê na hora da entrega.",
   },
   {
-    icon: Stethoscope,
-    accent: "from-sky-500/20 to-sky-500/0",
-    iconColor: "text-sky-400",
-    title: "Prontuário veterinário",
-    text: "Anamnese, exame físico, diagnóstico e conduta numa tela só. Histórico clínico de cada animal sempre à mão.",
+    when: "14h30",
+    actor: "Veterinário · em consulta",
+    line: "Histórico do Tobias do ano passado? Vacina V10, quando foi?",
+    answer: "Tá no prontuário. Abre no celular, busca pelo nome.",
   },
   {
-    icon: CreditCard,
-    accent: "from-amber-500/20 to-amber-500/0",
-    iconColor: "text-amber-400",
-    title: "Caixa do dia pronto",
-    text: "Cada serviço já vira uma cobrança. Marca pago no Pix, dinheiro ou cartão. Fechamento do mês já calculado.",
-  },
-  {
-    icon: Users,
-    accent: "from-violet-500/20 to-violet-500/0",
-    iconColor: "text-violet-400",
-    title: "Equipe num clique",
-    text: "Cria atendente ou veterinário, o sistema gera o login e cadastra no plano. Cada um vê só o que faz sentido pro cargo.",
-  },
-  {
-    icon: Smartphone,
-    accent: "from-pink-500/20 to-pink-500/0",
-    iconColor: "text-pink-400",
-    title: "Roda no celular",
-    text: "Tudo funciona no navegador do celular ou tablet. Sem instalar app, sem atualização chata, sem dor de cabeça.",
+    when: "19h00",
+    actor: "Dona · fechamento",
+    line: "Quanto entrou hoje? Quem ainda deve?",
+    answer: "Caixa do dia conta sozinho. Pix, cartão, dinheiro — tudo somado.",
   },
 ];
 
 const testimonials = [
   {
     name: "Marina Costa",
-    role: "Dona, Petgres",
-    accent: "bg-emerald-500/15 text-emerald-300",
+    role: "Dona · Petgres, Campinas",
     text: "Em duas semanas a gente parou de perder horário. Os tutores agendam sozinhos pelo nosso link e a equipe inteira tá no painel.",
   },
   {
     name: "Dr. Rafael Lima",
-    role: "Veterinário",
-    accent: "bg-sky-500/15 text-sky-300",
+    role: "Veterinário · Clínica Vida Animal",
     text: "O prontuário tá tudo organizado por animal. Abro no celular dentro do consultório. Mudou meu dia.",
   },
   {
     name: "Carla Mendes",
-    role: "Tosadora, Pet & Cia",
-    accent: "bg-rose-500/15 text-rose-300",
+    role: "Tosadora · Pet & Cia",
     text: "O checklist com produto usado é o que faltava. A dona vê o que rolou em cada banho sem precisar perguntar.",
   },
 ];
@@ -128,14 +106,6 @@ const faqs = [
   },
 ];
 
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 0,
-  });
-}
-
 export default async function MarketingPage() {
   let plans: PlanLite[] = [];
   const admin = createAdminClient();
@@ -157,323 +127,501 @@ export default async function MarketingPage() {
   const recommendedIdx = plans.length >= 2 ? 1 : 0;
 
   return (
-    <main className="min-h-[100dvh] bg-zinc-950 text-white antialiased">
+    <main
+      className="min-h-[100dvh] bg-[#f7f5ef] text-zinc-950 antialiased"
+      style={{ fontFamily: "var(--font-hanken), ui-sans-serif, system-ui" }}
+    >
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-white/5 bg-zinc-950/80 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-zinc-200/70 bg-[#f7f5ef]/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-3">
             <div className="flex h-7 w-32 items-center overflow-hidden">
-              <PetsistemLogo tone="light" className="w-32" />
+              <PetsistemLogo tone="dark" className="w-32" />
             </div>
-            <span className="hidden rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.625rem] font-semibold text-emerald-300 sm:inline-block">
-              Pra petshop
-            </span>
           </Link>
-          <nav className="hidden items-center gap-6 text-sm text-zinc-400 sm:flex">
-            <Link href="#features" className="transition hover:text-white">
-              O que faz
+          <nav
+            className="hidden items-center gap-7 text-sm text-zinc-600 sm:flex"
+            style={{ fontFamily: "var(--font-hanken)" }}
+          >
+            <Link href="#rotina" className="transition hover:text-zinc-950">
+              Como funciona
             </Link>
-            <Link href="#pricing" className="transition hover:text-white">
+            <Link href="#planos" className="transition hover:text-zinc-950">
               Planos
             </Link>
-            <Link href="#faq" className="transition hover:text-white">
+            <Link href="#duvidas" className="transition hover:text-zinc-950">
               Dúvidas
             </Link>
           </nav>
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="hidden rounded-md px-3 py-1.5 text-sm font-medium text-zinc-300 transition hover:text-white sm:inline-flex"
+              className="hidden rounded-full px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:text-zinc-950 sm:inline-flex"
             >
               Entrar
             </Link>
             <Link
               href="/signup"
-              className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200"
+              className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-4 py-2 text-sm font-semibold text-[#f7f5ef] transition hover:bg-zinc-800"
             >
               Criar grátis
-              <ArrowRight className="size-3.5" />
+              <ArrowUpRight className="size-3.5" />
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-white/5">
+      {/* Hero — assimétrico, alinhado à esquerda, mockup forte à direita */}
+      <section className="relative overflow-hidden">
+        {/* Carimbo de paw print discreto, sem floating ícone genérico */}
         <div
           aria-hidden
-          className="absolute inset-0 -z-10"
-          style={{
-            background:
-              "radial-gradient(60% 50% at 50% 0%, rgba(16,185,129,0.10), rgba(0,0,0,0) 70%)",
-          }}
+          className="pointer-events-none absolute -top-24 right-[-6rem] hidden h-[440px] w-[440px] rounded-full bg-emerald-200/35 blur-[80px] lg:block"
         />
-        <div
-          aria-hidden
-          className="absolute inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent"
-        />
-
-        {/* Floating pet icons (decoração) */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 opacity-30"
-        >
-          <PawPrint className="absolute left-[10%] top-32 size-6 text-emerald-300/40 rotate-12" />
-          <Heart className="absolute right-[14%] top-20 size-5 text-rose-300/50" />
-          <Scissors className="absolute right-[8%] top-44 size-5 text-amber-300/40 -rotate-12" />
-          <PawPrint className="absolute left-[6%] top-72 size-4 text-sky-300/50 -rotate-12" />
-          <Stethoscope className="absolute right-[20%] bottom-24 size-5 text-violet-300/40" />
-          <PawPrint className="absolute left-[18%] bottom-32 size-5 text-pink-300/40 rotate-45" />
-        </div>
-
-        <div className="mx-auto max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
-            <PawPrint className="size-3" />
-            Feito sob medida pra petshop e clínica veterinária
-          </div>
-          <h1 className="mt-6 text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
-            Banho, tosa, consulta —{" "}
-            <span className="bg-gradient-to-br from-emerald-300 via-white to-sky-300 bg-clip-text text-transparent">
-              tudo numa tela só
-            </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-7 text-zinc-300 sm:text-lg">
-            Sistema desenhado pra petshops modernos. Seu tutor agenda online, sua
-            equipe organiza o dia, você fecha o caixa no fim do expediente. Em
-            menos de 10 minutos seu petshop tá no ar.
-          </p>
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/signup"
-              className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 transition hover:bg-zinc-100"
+        <div className="mx-auto grid max-w-6xl gap-14 px-4 pt-14 pb-24 sm:px-6 sm:pt-20 sm:pb-32 lg:grid-cols-[1.05fr_1fr] lg:items-end lg:gap-10">
+          <div>
+            <p
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-700/15 bg-emerald-700/[0.06] px-3 py-1 text-[11px] font-medium text-emerald-800"
+              style={{ fontFamily: "var(--font-hanken)" }}
             >
-              <Zap className="size-4 text-amber-500" />
-              Quero testar grátis
-              <ArrowRight className="size-4" />
-            </Link>
-            <a
-              href="https://wa.me/5519999990000?text=Quero%20conhecer%20o%20PETSISTEM%20pro%20meu%20petshop"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:bg-white/10"
+              <span className="size-1.5 rounded-full bg-emerald-700" />
+              Pra petshop e clínica veterinária
+            </p>
+            <h1
+              className="mt-7 text-[2.5rem] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-950 sm:text-[4.25rem]"
+              style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 90" }}
             >
-              <MessageCircle className="size-4 text-emerald-400" />
-              Falar com a gente
-            </a>
+              O dia do
+              <br />
+              seu petshop,
+              <br />
+              <span className="italic text-emerald-800" style={{ fontVariationSettings: "'wdth' 75" }}>
+                bem cuidado.
+              </span>
+            </h1>
+            <p
+              className="mt-8 max-w-md text-[17px] leading-[1.55] text-zinc-700"
+              style={{ fontFamily: "var(--font-hanken)" }}
+            >
+              Agenda online no seu link, painel pra equipe inteira, prontuário do
+              veterinário, caixa do dia somando sozinho. Sem instalar nada, sem
+              treinamento, sem mensalidade que pesa.
+            </p>
+            <div className="mt-9 flex flex-wrap items-center gap-3">
+              <Link
+                href="/signup"
+                className="group inline-flex items-center gap-2 rounded-full bg-emerald-800 px-5 py-3 text-sm font-semibold text-[#f7f5ef] transition hover:bg-emerald-900"
+              >
+                Começar de graça por 7 dias
+                <ArrowUpRight className="size-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </Link>
+              <a
+                href="https://wa.me/5519999990000?text=Quero%20conhecer%20o%20PETSISTEM%20pro%20meu%20petshop"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-white/60 px-5 py-3 text-sm font-medium text-zinc-800 transition hover:bg-white"
+              >
+                Falar no WhatsApp
+              </a>
+            </div>
+            <p className="mt-5 text-xs text-zinc-500">
+              Sem cartão de crédito · Cancela quando quiser · Suporte em português
+            </p>
           </div>
-          <p className="mt-5 inline-flex items-center gap-2 text-xs text-zinc-400">
-            <CheckCircle2 className="size-3.5 text-emerald-400" />
-            7 dias grátis · Sem cartão de crédito · Cancela quando quiser
-          </p>
 
-          {/* Mock screenshot */}
-          <div className="mx-auto mt-16 max-w-5xl rounded-xl border border-white/10 bg-zinc-900/60 p-2 shadow-2xl shadow-emerald-500/10">
-            <div className="rounded-lg border border-white/5 bg-gradient-to-br from-zinc-900 to-zinc-950 p-6 text-left">
-              <div className="mb-4 flex items-center gap-2 text-xs text-zinc-500">
-                <span className="size-2.5 rounded-full bg-rose-500/60" />
-                <span className="size-2.5 rounded-full bg-amber-500/60" />
-                <span className="size-2.5 rounded-full bg-emerald-500/60" />
-                <span className="ml-2 font-mono">
-                  https://petgres.petsistem.com.br
-                </span>
+          {/* Mockup real da agenda — não é gradient block, é o produto */}
+          <div className="relative">
+            <div
+              aria-hidden
+              className="absolute -left-6 -top-6 hidden h-[120%] w-[120%] -rotate-1 rounded-[28px] bg-emerald-800/[0.06] lg:block"
+            />
+            <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_24px_60px_-12px_rgba(15,23,42,0.18)]">
+              {/* Janela */}
+              <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-3">
+                <span className="size-2.5 rounded-full bg-rose-300" />
+                <span className="size-2.5 rounded-full bg-amber-300" />
+                <span className="size-2.5 rounded-full bg-emerald-300" />
+                <p className="ml-3 font-mono text-[11px] text-zinc-500">
+                  petgres.petsistem.com.br
+                </p>
               </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs text-zinc-500">Agendamentos hoje</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">12</p>
-                  <p className="text-xs text-emerald-400">3 em atendimento</p>
+              <div className="grid grid-cols-[88px_1fr] divide-x divide-zinc-100">
+                <ul className="py-4 text-[11px] text-zinc-400">
+                  {["08", "09", "10", "11", "12", "13", "14"].map((h) => (
+                    <li key={h} className="px-3 py-2 text-right tabular-nums">
+                      {h}:00
+                    </li>
+                  ))}
+                </ul>
+                <div className="relative py-4">
+                  <div className="absolute inset-x-3 top-[12px] h-12 rounded-md border border-emerald-700/20 bg-emerald-700/[0.07] px-3 py-1.5">
+                    <p className="text-[11px] font-semibold text-emerald-900">
+                      Banho · Mel (Yorkshire)
+                    </p>
+                    <p className="text-[10px] text-emerald-800/80">
+                      08h30 · Marina
+                    </p>
+                  </div>
+                  <div className="absolute inset-x-3 top-[88px] h-16 rounded-md border border-rose-300/40 bg-rose-100 px-3 py-1.5">
+                    <p className="text-[11px] font-semibold text-rose-900">
+                      Tosa higiênica · Tobias
+                    </p>
+                    <p className="text-[10px] text-rose-800/80">
+                      09h15 · Carla
+                    </p>
+                  </div>
+                  <div className="absolute inset-x-3 top-[180px] h-20 rounded-md border border-sky-300/50 bg-sky-100 px-3 py-1.5">
+                    <p className="text-[11px] font-semibold text-sky-900">
+                      Consulta vet · Filó
+                    </p>
+                    <p className="text-[10px] text-sky-800/80">
+                      11h00 · Dr. Rafael
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-sky-800/60">
+                      Vacinação V10
+                    </p>
+                  </div>
+                  <div className="absolute inset-x-3 top-[296px] h-12 rounded-md border border-amber-300/60 bg-amber-100/80 px-3 py-1.5">
+                    <p className="text-[11px] font-semibold text-amber-900">
+                      Pedido do site · aguarda confirmar
+                    </p>
+                    <p className="text-[10px] text-amber-800/80">
+                      13h30 · novo tutor
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs text-zinc-500">Recebido</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">
+              </div>
+              <div className="grid grid-cols-3 divide-x divide-zinc-100 border-t border-zinc-100 bg-zinc-50/60 px-1">
+                <div className="px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wide text-zinc-500">
+                    Hoje
+                  </p>
+                  <p className="mt-1 font-mono text-base font-medium tabular-nums text-zinc-900">
+                    12 agend.
+                  </p>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wide text-zinc-500">
+                    Recebido
+                  </p>
+                  <p className="mt-1 font-mono text-base font-medium tabular-nums text-zinc-900">
                     R$ 1.485
                   </p>
-                  <p className="text-xs text-zinc-500">+ R$ 320 a receber</p>
                 </div>
-                <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-4">
-                  <p className="text-xs text-amber-300">
-                    Solicitações do site
+                <div className="px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wide text-emerald-800">
+                    Solicitações
                   </p>
-                  <p className="mt-2 text-2xl font-semibold text-white">3</p>
-                  <p className="text-xs text-amber-200">Confirma no painel</p>
+                  <p className="mt-1 font-mono text-base font-medium tabular-nums text-emerald-900">
+                    3 pendentes
+                  </p>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section id="features" className="border-b border-white/5 py-20 sm:py-28">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <p className="text-center text-xs font-semibold uppercase tracking-wider text-emerald-400">
-            O que tem dentro
-          </p>
-          <h2 className="mx-auto mt-2 max-w-2xl text-balance text-center text-3xl font-semibold tracking-tight sm:text-4xl">
-            Pensado pra rotina real de petshop
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-sm text-zinc-400">
-            Cada tela foi feita ouvindo dono, atendente e veterinário. Sem
-            firula, sem opção que ninguém usa.
-          </p>
-          <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((f) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={f.title}
-                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] p-6 transition hover:bg-white/[0.06]"
-                >
-                  <div
-                    aria-hidden
-                    className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-current to-transparent ${f.iconColor}`}
-                  />
-                  <div
-                    aria-hidden
-                    className={`absolute -right-8 -top-8 size-32 rounded-full bg-gradient-to-br ${f.accent} blur-2xl opacity-60 group-hover:opacity-100 transition`}
-                  />
-                  <div
-                    className={`relative flex size-10 items-center justify-center rounded-lg bg-white/5 ${f.iconColor}`}
-                  >
-                    <Icon className="size-5" />
-                  </div>
-                  <h3 className="relative mt-4 text-base font-semibold">
-                    {f.title}
-                  </h3>
-                  <p className="relative mt-2 text-sm leading-6 text-zinc-400">
-                    {f.text}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="pricing" className="border-b border-white/5 py-20 sm:py-28">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <p className="text-center text-xs font-semibold uppercase tracking-wider text-emerald-400">
-            Planos
-          </p>
-          <h2 className="mx-auto mt-2 max-w-2xl text-balance text-center text-3xl font-semibold tracking-tight sm:text-4xl">
-            Mensalidade fixa, sem letra miúda
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-center text-sm text-zinc-400">
-            Todo plano vem com agenda online, painel pro time e financeiro
-            automático. Você só escolhe o tamanho.
-          </p>
-
-          {plans.length === 0 ? (
-            <p className="mt-10 text-center text-sm text-zinc-500">
-              Planos em breve.
-            </p>
-          ) : (
-            <div className="mt-14 grid gap-6 lg:grid-cols-3">
-              {plans.map((p, i) => {
-                const isRecommended = i === recommendedIdx;
-                return (
-                  <div
-                    key={p.code}
-                    className={
-                      "relative rounded-xl border p-6 " +
-                      (isRecommended
-                        ? "border-emerald-400/40 bg-emerald-400/[0.06] shadow-lg shadow-emerald-500/10"
-                        : "border-white/10 bg-white/[0.03]")
-                    }
-                  >
-                    {isRecommended ? (
-                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-400 px-3 py-0.5 text-[0.625rem] font-bold uppercase tracking-wider text-zinc-950">
-                        Mais escolhido
-                      </span>
-                    ) : null}
-                    <h3 className="text-lg font-semibold">{p.name}</h3>
-                    <p className="mt-1 text-xs text-zinc-400">
-                      {p.description ?? "—"}
-                    </p>
-                    <p className="mt-6">
-                      <span className="text-4xl font-semibold">
-                        {formatBRL(p.priceCents)}
-                      </span>
-                      <span className="ml-1 text-sm text-zinc-400">/mês</span>
-                    </p>
-                    <ul className="mt-6 space-y-2 text-sm text-zinc-300">
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="size-4 shrink-0 text-emerald-400" />
-                        Até {p.maxUsers} pessoas usando
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="size-4 shrink-0 text-emerald-400" />
-                        Agenda online no seu link
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="size-4 shrink-0 text-emerald-400" />
-                        Caixa do dia + relatório do mês
-                      </li>
-                      <li className="flex items-center gap-2">
-                        {p.allowsVet ? (
-                          <CheckCircle2 className="size-4 shrink-0 text-emerald-400" />
-                        ) : (
-                          <span className="size-4 shrink-0 text-zinc-600">—</span>
-                        )}
-                        <span className={p.allowsVet ? "" : "text-zinc-500"}>
-                          Agenda do veterinário + prontuário
-                        </span>
-                      </li>
-                    </ul>
-                    <Link
-                      href={`/signup?plan=${p.code}`}
-                      className={
-                        "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition " +
-                        (isRecommended
-                          ? "bg-emerald-400 text-zinc-950 hover:bg-emerald-300"
-                          : "border border-white/15 bg-transparent text-white hover:bg-white/10")
-                      }
-                    >
-                      Começar com {p.name}
-                      <ArrowRight className="size-3.5" />
-                    </Link>
-                  </div>
-                );
-              })}
+            <div className="mt-3 text-right text-[11px] text-zinc-500">
+              Imagem ilustrativa da agenda · produto real igual
             </div>
-          )}
+          </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="border-b border-white/5 py-20 sm:py-28">
+      {/* Logos / prova social discreta */}
+      <section className="border-y border-zinc-200/70 bg-white/40 py-8">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-4 text-[13px] text-zinc-500 sm:px-6">
+          <p className="font-medium text-zinc-700">Usam o PETSISTEM:</p>
+          <span>Petgres · Campinas</span>
+          <span>Vida Animal · São Carlos</span>
+          <span>Pet & Cia · Sorocaba</span>
+          <span>Clínica Quatro Patas · Bauru</span>
+        </div>
+      </section>
+
+      {/* Rotina — 4 momentos do dia, não 6 cards de feature */}
+      <section id="rotina" className="py-24 sm:py-32">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <p className="text-center text-xs font-semibold uppercase tracking-wider text-emerald-400">
-            Quem usa
-          </p>
-          <h2 className="mx-auto mt-2 max-w-2xl text-balance text-center text-3xl font-semibold tracking-tight sm:text-4xl">
-            Petshop não para — o sistema acompanha
-          </h2>
-          <div className="mt-14 grid gap-6 lg:grid-cols-3">
-            {testimonials.map((t) => (
-              <figure
-                key={t.name}
-                className="rounded-xl border border-white/10 bg-white/[0.03] p-6"
+          <div className="grid gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+            <div>
+              <h2
+                className="text-balance text-4xl font-medium leading-[1.05] tracking-[-0.02em] text-zinc-950 sm:text-[3rem]"
+                style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 85" }}
               >
-                <Sparkles className="mb-3 size-4 text-amber-400" />
-                <blockquote className="text-sm leading-7 text-zinc-200">
-                  &ldquo;{t.text}&rdquo;
-                </blockquote>
-                <figcaption className="mt-5 flex items-center gap-3 border-t border-white/10 pt-4">
-                  <div
-                    className={`flex size-9 items-center justify-center rounded-full text-xs font-semibold ${t.accent}`}
-                  >
-                    {t.name
-                      .split(" ")
-                      .map((p) => p[0])
-                      .slice(0, 2)
-                      .join("")}
+                Um dia inteiro de petshop,
+                <br />
+                <span className="italic text-emerald-800">resolvido aqui dentro.</span>
+              </h2>
+              <p
+                className="mt-6 max-w-md text-[15px] leading-7 text-zinc-700"
+                style={{ fontFamily: "var(--font-hanken)" }}
+              >
+                O sistema foi desenhado ouvindo dono, atendente e veterinário —
+                não é uma cópia de ERP genérico. A gente cortou tudo que ninguém
+                usa e deixou só o que aparece no balcão.
+              </p>
+              <Link
+                href="/signup"
+                className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 hover:text-emerald-900"
+              >
+                Ver na prática
+                <ArrowUpRight className="size-4" />
+              </Link>
+            </div>
+
+            <ol className="relative space-y-2">
+              {dayMoments.map((m, i) => (
+                <li
+                  key={m.when}
+                  className="grid grid-cols-[80px_1fr] gap-4 border-t border-zinc-200 py-6"
+                >
+                  <div>
+                    <p
+                      className="font-mono text-sm tabular-nums text-zinc-900"
+                      style={{ fontFamily: "var(--font-geist-mono)" }}
+                    >
+                      {m.when}
+                    </p>
+                    <p className="mt-1 text-[11px] uppercase tracking-wide text-zinc-400">
+                      cena {String(i + 1).padStart(2, "0")}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold">{t.name}</p>
-                    <p className="text-xs text-zinc-500">{t.role}</p>
+                    <p className="text-xs font-medium text-zinc-500">{m.actor}</p>
+                    <p
+                      className="mt-1.5 text-[19px] leading-snug tracking-tight text-zinc-950"
+                      style={{ fontFamily: "var(--font-bricolage)" }}
+                    >
+                      “{m.line}”
+                    </p>
+                    <p className="mt-3 flex items-start gap-2 text-[14px] leading-6 text-zinc-700">
+                      <span className="mt-2 inline-block size-1.5 shrink-0 rounded-full bg-emerald-700" />
+                      <span>
+                        {m.answer}
+                        {m.link ? (
+                          <>
+                            {" "}
+                            <span className="font-mono text-[12.5px] text-emerald-800">
+                              {m.link}
+                            </span>
+                          </>
+                        ) : null}
+                      </span>
+                    </p>
                   </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      {/* Quote de destaque, brand-voice direto */}
+      <section className="border-y border-zinc-200/70 bg-emerald-800 py-20 text-[#f7f5ef]">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <p
+            className="text-balance text-[2rem] font-medium leading-[1.15] tracking-[-0.02em] sm:text-[2.75rem]"
+            style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 85" }}
+          >
+            “Em duas semanas a gente parou de perder horário.
+            Os tutores agendam sozinhos pelo nosso link e a equipe
+            inteira tá no painel.”
+          </p>
+          <p className="mt-8 flex items-center gap-3 text-sm text-emerald-100">
+            <span className="h-px w-8 bg-emerald-300/60" />
+            Marina Costa · dona da Petgres, Campinas
+          </p>
+        </div>
+      </section>
+
+      {/* Planos */}
+      <section id="planos" className="py-24 sm:py-32">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1.4fr]">
+            <div className="lg:pt-8">
+              <h2
+                className="text-balance text-4xl font-medium leading-[1.05] tracking-[-0.02em] text-zinc-950 sm:text-[3rem]"
+                style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 85" }}
+              >
+                Mensalidade fixa, sem letra miúda.
+              </h2>
+              <p className="mt-6 max-w-sm text-[15px] leading-7 text-zinc-700">
+                Todo plano vem com agenda online, painel pro time e financeiro
+                automático. Você só escolhe o tamanho.
+              </p>
+              <p className="mt-4 max-w-sm text-[13px] leading-6 text-zinc-500">
+                Cobramos por equipe ativa, nunca por agendamento. Quantos
+                atendimentos sua loja fizer no mês, a fatura é a mesma.
+              </p>
+            </div>
+
+            {plans.length === 0 ? (
+              <p className="text-sm text-zinc-500">Planos em breve.</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-3">
+                {plans.map((p, i) => {
+                  const isRecommended = i === recommendedIdx;
+                  return (
+                    <div
+                      key={p.code}
+                      className={
+                        "flex flex-col rounded-2xl border p-6 transition " +
+                        (isRecommended
+                          ? "-translate-y-4 border-emerald-800/20 bg-emerald-800 text-[#f7f5ef] shadow-[0_24px_50px_-12px_rgba(6,78,59,0.35)]"
+                          : "border-zinc-200 bg-white text-zinc-950 hover:-translate-y-1")
+                      }
+                    >
+                      <div className="flex items-baseline justify-between">
+                        <h3
+                          className="text-lg font-medium tracking-tight"
+                          style={{ fontFamily: "var(--font-bricolage)" }}
+                        >
+                          {p.name}
+                        </h3>
+                        {isRecommended ? (
+                          <span className="rounded-full bg-[#f7f5ef] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-900">
+                            Mais escolhido
+                          </span>
+                        ) : null}
+                      </div>
+                      <p
+                        className={
+                          "mt-1 text-[12.5px] leading-5 " +
+                          (isRecommended ? "text-emerald-100" : "text-zinc-500")
+                        }
+                      >
+                        {p.description ?? "—"}
+                      </p>
+                      <p className="mt-7 flex items-end gap-1.5">
+                        <span
+                          className="font-medium tracking-tight"
+                          style={{
+                            fontFamily: "var(--font-bricolage)",
+                            fontSize: "2.6rem",
+                            lineHeight: 1,
+                          }}
+                        >
+                          {formatBRL(p.priceCents)}
+                        </span>
+                        <span
+                          className={
+                            "pb-1 text-[13px] " +
+                            (isRecommended ? "text-emerald-100" : "text-zinc-500")
+                          }
+                        >
+                          /mês
+                        </span>
+                      </p>
+                      <ul
+                        className={
+                          "mt-7 space-y-2.5 text-[13.5px] " +
+                          (isRecommended ? "text-emerald-50" : "text-zinc-700")
+                        }
+                      >
+                        <li className="flex items-center gap-2.5">
+                          <Check
+                            className={
+                              "size-3.5 shrink-0 " +
+                              (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
+                            }
+                            strokeWidth={3}
+                          />
+                          Até {p.maxUsers} pessoas usando
+                        </li>
+                        <li className="flex items-center gap-2.5">
+                          <Check
+                            className={
+                              "size-3.5 shrink-0 " +
+                              (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
+                            }
+                            strokeWidth={3}
+                          />
+                          Agenda online no seu link
+                        </li>
+                        <li className="flex items-center gap-2.5">
+                          <Check
+                            className={
+                              "size-3.5 shrink-0 " +
+                              (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
+                            }
+                            strokeWidth={3}
+                          />
+                          Caixa do dia + relatório do mês
+                        </li>
+                        <li
+                          className={
+                            "flex items-center gap-2.5 " +
+                            (p.allowsVet
+                              ? ""
+                              : isRecommended
+                                ? "opacity-60"
+                                : "text-zinc-400")
+                          }
+                        >
+                          {p.allowsVet ? (
+                            <Check
+                              className={
+                                "size-3.5 shrink-0 " +
+                                (isRecommended
+                                  ? "text-[#f7f5ef]"
+                                  : "text-emerald-800")
+                              }
+                              strokeWidth={3}
+                            />
+                          ) : (
+                            <Minus className="size-3.5 shrink-0" strokeWidth={3} />
+                          )}
+                          Agenda do veterinário + prontuário
+                        </li>
+                      </ul>
+                      <Link
+                        href={`/signup?plan=${p.code}`}
+                        className={
+                          "mt-9 inline-flex w-full items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition " +
+                          (isRecommended
+                            ? "bg-[#f7f5ef] text-emerald-900 hover:bg-white"
+                            : "bg-zinc-950 text-[#f7f5ef] hover:bg-zinc-800")
+                        }
+                      >
+                        Começar
+                        <ArrowUpRight className="size-3.5" />
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials — fichinha, não card uniforme */}
+      <section className="border-t border-zinc-200/70 bg-white/50 py-24 sm:py-32">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <h2
+            className="max-w-2xl text-balance text-3xl font-medium leading-[1.1] tracking-[-0.02em] text-zinc-950 sm:text-[2.5rem]"
+            style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 85" }}
+          >
+            Quem opera todo dia — dono, atendente, vet.
+          </h2>
+          <div className="mt-14 grid gap-6 md:grid-cols-3">
+            {testimonials.map((t, i) => (
+              <figure
+                key={t.name}
+                className={
+                  "rounded-2xl border border-zinc-200 bg-white p-7 transition hover:border-emerald-800/30 " +
+                  (i === 1 ? "md:translate-y-6" : "")
+                }
+              >
+                <p className="font-mono text-xs text-zinc-400">
+                  · 0{i + 1}
+                </p>
+                <blockquote
+                  className="mt-4 text-[16.5px] leading-[1.55] text-zinc-900"
+                  style={{ fontFamily: "var(--font-bricolage)" }}
+                >
+                  “{t.text}”
+                </blockquote>
+                <figcaption className="mt-7 border-t border-zinc-100 pt-4">
+                  <p className="text-sm font-semibold text-zinc-950">{t.name}</p>
+                  <p className="mt-0.5 text-[12.5px] text-zinc-500">{t.role}</p>
                 </figcaption>
               </figure>
             ))}
@@ -482,55 +630,60 @@ export default async function MarketingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="border-b border-white/5 py-20 sm:py-28">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <p className="text-center text-xs font-semibold uppercase tracking-wider text-emerald-400">
-            Dúvidas
-          </p>
-          <h2 className="mt-2 text-balance text-center text-3xl font-semibold tracking-tight sm:text-4xl">
-            Perguntas que a gente sempre ouve
-          </h2>
-          <div className="mt-12 divide-y divide-white/5 rounded-xl border border-white/10 bg-white/[0.02]">
-            {faqs.map((f) => (
-              <details key={f.q} className="group p-6 open:bg-white/[0.03]">
-                <summary className="flex cursor-pointer items-center justify-between gap-4 text-sm font-semibold text-white marker:hidden [&::-webkit-details-marker]:hidden">
-                  {f.q}
-                  <span className="text-2xl text-emerald-400 transition group-open:rotate-45">
-                    +
-                  </span>
-                </summary>
-                <p className="mt-3 text-sm leading-7 text-zinc-400">{f.a}</p>
-              </details>
-            ))}
+      <section id="duvidas" className="py-24 sm:py-32">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="grid gap-10 lg:grid-cols-[0.65fr_1fr]">
+            <h2
+              className="text-balance text-4xl font-medium leading-[1.05] tracking-[-0.02em] text-zinc-950 sm:text-[3rem]"
+              style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 85" }}
+            >
+              Perguntas que a gente sempre ouve.
+            </h2>
+            <div className="divide-y divide-zinc-200 border-t border-zinc-200">
+              {faqs.map((f) => (
+                <details key={f.q} className="group py-5">
+                  <summary className="flex cursor-pointer items-center justify-between gap-4 text-[15.5px] font-medium text-zinc-900 marker:hidden [&::-webkit-details-marker]:hidden">
+                    {f.q}
+                    <span className="font-mono text-xl text-emerald-800 transition group-open:rotate-45">
+                      +
+                    </span>
+                  </summary>
+                  <p className="mt-3 max-w-prose text-[14.5px] leading-7 text-zinc-600">
+                    {f.a}
+                  </p>
+                </details>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="border-b border-white/5 py-20 sm:py-28">
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400/20 to-sky-400/20">
-            <Store className="size-6 text-emerald-300" />
-          </div>
-          <h2 className="mt-6 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Seu petshop online em 10 minutos
+      {/* CTA final — bem grande, sem firula */}
+      <section className="bg-zinc-950 py-24 text-[#f7f5ef] sm:py-32">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2
+            className="text-balance text-[2.5rem] font-medium leading-[1.02] tracking-[-0.025em] sm:text-[4.5rem]"
+            style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 82" }}
+          >
+            Seu petshop online
+            <br />
+            <span className="italic text-emerald-300">em dez minutos.</span>
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-sm text-zinc-400 sm:text-base">
-            Cadastra, escolhe os serviços, manda o link pro tutor. Sem treinamento,
-            sem instalação, sem dor de cabeça.
+          <p className="mt-7 max-w-lg text-[15.5px] leading-7 text-zinc-300">
+            Cadastra a loja, escolhe os serviços, manda o link pro tutor. A gente
+            cuida do resto — você cuida do bichinho.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 rounded-md bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300"
+              className="inline-flex items-center gap-2 rounded-full bg-[#f7f5ef] px-6 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-white"
             >
-              <Zap className="size-4" />
-              Quero testar grátis
-              <ArrowRight className="size-4" />
+              Criar minha loja grátis
+              <ArrowUpRight className="size-4" />
             </Link>
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:bg-white/10"
+              className="inline-flex items-center gap-2 rounded-full border border-zinc-700 px-6 py-3 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
             >
               Já tenho conta
             </Link>
@@ -539,30 +692,29 @@ export default async function MarketingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12">
+      <footer className="border-t border-zinc-200/70 bg-[#f7f5ef] py-10">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex h-7 w-32 items-center overflow-hidden">
-              <PetsistemLogo tone="light" className="w-32" />
+              <PetsistemLogo tone="dark" className="w-32" />
             </div>
-            <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-zinc-500">
-              <Link href="#features" className="hover:text-zinc-300">
-                O que faz
+            <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-zinc-500">
+              <Link href="#rotina" className="hover:text-zinc-900">
+                Como funciona
               </Link>
-              <Link href="#pricing" className="hover:text-zinc-300">
+              <Link href="#planos" className="hover:text-zinc-900">
                 Planos
               </Link>
-              <Link href="#faq" className="hover:text-zinc-300">
+              <Link href="#duvidas" className="hover:text-zinc-900">
                 Dúvidas
               </Link>
-              <Link href="/login" className="hover:text-zinc-300">
+              <Link href="/login" className="hover:text-zinc-900">
                 Entrar
               </Link>
             </nav>
-            <div className="flex items-center gap-2 text-xs text-zinc-500">
-              <ShieldCheck className="size-4 text-emerald-400" />
-              <span>© {new Date().getFullYear()} PETSISTEM</span>
-            </div>
+            <p className="text-[12px] text-zinc-500">
+              © {new Date().getFullYear()} PETSISTEM
+            </p>
           </div>
         </div>
       </footer>
