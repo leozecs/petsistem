@@ -1426,6 +1426,7 @@ export type Database = {
           email: string | null
           id: string
           legal_name: string | null
+          logo_path: string | null
           name: string
           phone: string | null
           pix_key: string | null
@@ -1449,6 +1450,7 @@ export type Database = {
           email?: string | null
           id?: string
           legal_name?: string | null
+          logo_path?: string | null
           name: string
           phone?: string | null
           pix_key?: string | null
@@ -1472,6 +1474,7 @@ export type Database = {
           email?: string | null
           id?: string
           legal_name?: string | null
+          logo_path?: string | null
           name?: string
           phone?: string | null
           pix_key?: string | null

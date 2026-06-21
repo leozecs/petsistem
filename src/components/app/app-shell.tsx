@@ -52,8 +52,14 @@ function roleLabel(session: SessionContext, variant: ShellVariant): string {
   return "Acesso";
 }
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
 function getPetshopLogoUrl(petshop: ActivePetshop | null | undefined) {
   if (!petshop) return null;
+  // Logo carregada pelo dono via /app/configuracoes tem prioridade.
+  if (petshop.logoPath && SUPABASE_URL) {
+    return `${SUPABASE_URL}/storage/v1/object/public/petshop-logos/${petshop.logoPath}`;
+  }
   return knownPetshopLogos[petshop.slug] ?? knownPetshopLogos[petshop.subdomain] ?? null;
 }
 

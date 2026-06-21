@@ -64,6 +64,7 @@ type Props = {
   services: BookingService[];
   address: string | null;
   phone: string | null;
+  logoUrl: string | null;
 };
 
 const SPECIES_OPTIONS = ["Cachorro", "Gato", "Pássaro", "Roedor", "Réptil", "Outro"];
@@ -86,6 +87,7 @@ export function BookingPage({
   services,
   address,
   phone,
+  logoUrl,
 }: Props) {
   const [activeArea, setActiveArea] = useState<"grooming" | "veterinary">(
     services.find((s) => s.area === "grooming") ? "grooming" : "veterinary",
@@ -240,6 +242,14 @@ export function BookingPage({
               className="hidden h-6 w-px sm:block"
               style={{ backgroundColor: "#e4e4e7" }}
             />
+            {logoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={logoUrl}
+                alt={`Logo ${storeName}`}
+                className="hidden h-8 w-auto object-contain sm:block"
+              />
+            ) : null}
             <div className="hidden sm:block">
               <p
                 className="text-sm font-semibold"

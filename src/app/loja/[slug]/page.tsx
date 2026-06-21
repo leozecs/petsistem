@@ -33,11 +33,21 @@ export default async function StorefrontPage({
 
   const { data: petshop } = await admin
     .from("petshops")
-    .select("id, name, slug, subdomain, status, primary_color, address, phone")
+    .select(
+      "id, name, slug, subdomain, status, primary_color, address, phone, logo_path",
+    )
     .or(`slug.eq.${slug},subdomain.eq.${slug}`)
     .is("deleted_at", null)
     .maybeSingle();
   if (!petshop) notFound();
+
+  let logoUrl: string | null = null;
+  if (petshop.logo_path) {
+    const { data: pub } = admin.storage
+      .from("petshop-logos")
+      .getPublicUrl(petshop.logo_path);
+    logoUrl = pub.publicUrl;
+  }
 
   const { data: servicesData } = await admin
     .from("services")
@@ -66,6 +76,7 @@ export default async function StorefrontPage({
       services={services}
       address={petshop.address ?? null}
       phone={petshop.phone ?? null}
+      logoUrl={logoUrl}
     />
   );
 }
