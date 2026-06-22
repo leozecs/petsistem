@@ -127,17 +127,24 @@ export async function saveAppointment(
     return { ok: false, error: "Serviço incompatível com a área do calendário." };
   }
 
-  // Defense-in-depth: every appointment is a fixed 30-min slot. The DB EXCLUDE
-  // constraint cannot enforce duration; without this check a client could submit
-  // a near-zero range to slip a ghost row between adjacent bookings.
-  // `targetService.duration_minutes` is informational only — service-level work
-  // longer than a slot is handled by booking consecutive slots.
+  // Defense-in-depth: cada agendamento ocupa um slot do tamanho configurado
+  // pela loja (default 30min). O DB EXCLUDE constraint não consegue validar
+  // duração; sem essa checagem o cliente poderia mandar um range quase-zero
+  // pra furar a fila entre slots.
+  const { data: petshopRow } = await supabase
+    .from("petshops")
+    .select("slot_minutes")
+    .eq("id", membership.petshopId)
+    .maybeSingle();
+  const SLOT_MINUTES = petshopRow?.slot_minutes ?? 30;
   const startsAtDate = new Date(parsed.data.starts_at);
   const endsAtDate = new Date(parsed.data.ends_at);
-  const SLOT_MINUTES = 30;
   const actualDurationMin = Math.round((endsAtDate.getTime() - startsAtDate.getTime()) / 60_000);
   if (actualDurationMin !== SLOT_MINUTES) {
-    return { ok: false, error: "Cada agendamento ocupa um slot fixo de 30 minutos." };
+    return {
+      ok: false,
+      error: `Cada agendamento ocupa um slot fixo de ${SLOT_MINUTES} minutos.`,
+    };
   }
   void targetService.duration_minutes; // intentionally unused; kept for future per-slot pricing.
 
@@ -463,7 +470,6 @@ function friendlyError(raw: string): string {
   return raw;
 }
 
-const SLOT_MINUTES_RESCHED = 30;
 const rescheduleSchema = z.object({
   id: z.string().uuid(),
   starts_at: z.string().min(1),
@@ -512,12 +518,21 @@ export async function rescheduleAppointment(
     return { ok: false, error: "Atendimento já encerrado. Crie um novo agendamento." };
   }
 
-  // Slot fixo de 30 min (defesa contra ghost insert; mesma regra do create)
+  // Slot do tamanho configurado pela loja
+  const { data: petshopRow } = await supabase
+    .from("petshops")
+    .select("slot_minutes")
+    .eq("id", membership.petshopId)
+    .maybeSingle();
+  const SLOT_MINUTES = petshopRow?.slot_minutes ?? 30;
   const startsAtDate = new Date(parsed.data.starts_at);
   const endsAtDate = new Date(parsed.data.ends_at);
   const durMin = Math.round((endsAtDate.getTime() - startsAtDate.getTime()) / 60_000);
-  if (durMin !== SLOT_MINUTES_RESCHED) {
-    return { ok: false, error: "Cada agendamento ocupa um slot fixo de 30 minutos." };
+  if (durMin !== SLOT_MINUTES) {
+    return {
+      ok: false,
+      error: `Cada agendamento ocupa um slot fixo de ${SLOT_MINUTES} minutos.`,
+    };
   }
 
   // Buscar duração real do service pra validar janela do calendário corretamente
@@ -527,7 +542,7 @@ export async function rescheduleAppointment(
     .eq("id", appt.service_id)
     .eq("petshop_id", membership.petshopId)
     .maybeSingle();
-  const svcDuration = svc?.duration_minutes ?? SLOT_MINUTES_RESCHED;
+  const svcDuration = svc?.duration_minutes ?? SLOT_MINUTES;
 
   // Valida que cai num horário de funcionamento ativo do calendário
   const startsAtParts = petshopDateOf(startsAtDate);

@@ -109,6 +109,49 @@ export async function updatePetshopVisual(
   return { ok: true };
 }
 
+const operationsSchema = z.object({
+  slot_minutes: z.coerce.number().int().refine((n) => [15, 20, 30, 45, 60].includes(n), {
+    message: "Intervalo deve ser 15, 20, 30, 45 ou 60 minutos.",
+  }),
+});
+
+/**
+ * Edita o intervalo (gap) entre agendamentos. Afeta tanto a geração de slots
+ * no calendário quanto a validação de duração no saveAppointment/reschedule.
+ * Default 30 (mantém comportamento histórico). Owner only.
+ */
+export async function updatePetshopOperations(
+  formData: FormData,
+): Promise<ActionState> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner"])) {
+    return { ok: false, error: "Apenas o dono pode editar." };
+  }
+
+  const parsed = operationsSchema.safeParse({
+    slot_minutes: formData.get("slot_minutes"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  const { error } = await supabase
+    .from("petshops")
+    .update({
+      slot_minutes: parsed.data.slot_minutes,
+      updated_by: session.user.id,
+    })
+    .eq("id", membership.petshopId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/app/configuracoes");
+  revalidatePath("/app/calendarios");
+  return { ok: true };
+}
+
 const uploadLogoSchema = z.object({
   petshop_id: z.string().uuid(),
   ext: z.enum(["png", "jpg", "jpeg", "webp", "svg"]),

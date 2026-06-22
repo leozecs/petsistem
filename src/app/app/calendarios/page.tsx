@@ -53,6 +53,13 @@ export default async function CalendariosPage({
   const supabase = await createClient();
   if (!supabase) redirect("/login?error=supabase-not-configured");
 
+  const { data: petshopRow } = await supabase
+    .from("petshops")
+    .select("slot_minutes")
+    .eq("id", membership.petshopId)
+    .maybeSingle();
+  const slotMinutes = petshopRow?.slot_minutes ?? 30;
+
   // Pre-calculate the date range from URL params (pure, no async) so we can
   // start the appointments fetch in the same Promise.all as the calendar list.
   const selectedDayUtc = parseDateParam(params.date);
@@ -250,6 +257,7 @@ export default async function CalendariosPage({
       schedules={schedules}
       appointmentsByDay={appointmentsByDay}
       petshopName={membership.petshop.name}
+      slotMinutes={slotMinutes}
     />
   );
 }

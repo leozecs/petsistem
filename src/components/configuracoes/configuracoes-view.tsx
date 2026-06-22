@@ -4,6 +4,8 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  ArrowRight,
+  Clock,
   ExternalLink,
   Globe,
   Image as ImageIcon,
@@ -12,10 +14,13 @@ import {
   Palette,
   Phone,
   Save,
+  Settings as SettingsIcon,
   Store,
+  Tags,
   Trash2,
   Upload,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +31,7 @@ import { SectionHeading } from "@/components/app/section-heading";
 import {
   removePetshopLogo,
   updatePetshopGeneral,
+  updatePetshopOperations,
   updatePetshopVisual,
   uploadPetshopLogo,
 } from "@/app/app/configuracoes/actions";
@@ -42,6 +48,7 @@ type Props = {
     primaryColor: string;
     subdomain: string;
     logoUrl: string | null;
+    slotMinutes: number;
   };
   rootDomain: string;
 };
@@ -64,6 +71,24 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
   const [color, setColor] = useState(petshop.primaryColor);
   const [logoPreview, setLogoPreview] = useState<string | null>(petshop.logoUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Operacional
+  const [slotMinutes, setSlotMinutes] = useState<number>(petshop.slotMinutes);
+
+  function submitOperations(value: number) {
+    const fd = new FormData();
+    fd.set("slot_minutes", String(value));
+    startTransition(async () => {
+      const result = await updatePetshopOperations(fd);
+      if (result.ok) {
+        toast.success("Intervalo de agendamento atualizado.");
+        setSlotMinutes(value);
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao salvar");
+      }
+    });
+  }
 
   function submitGeneral(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -151,10 +176,14 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
       />
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid h-11 w-full max-w-md grid-cols-2 rounded-lg bg-zinc-100 p-1">
+        <TabsList className="grid h-11 w-full max-w-2xl grid-cols-3 rounded-lg bg-zinc-100 p-1">
           <TabsTrigger value="general" className="rounded-md">
             <Store className="size-4" />
             Geral
+          </TabsTrigger>
+          <TabsTrigger value="operations" className="rounded-md">
+            <SettingsIcon className="size-4" />
+            Operacional
           </TabsTrigger>
           <TabsTrigger value="visual" className="rounded-md">
             <Palette className="size-4" />
@@ -301,6 +330,88 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
               </form>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* OPERACIONAL */}
+        <TabsContent value="operations" className="space-y-4">
+          <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex size-10 items-center justify-center rounded-md bg-zinc-100 text-zinc-700">
+                  <Clock className="size-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-zinc-950">
+                    Intervalo entre agendamentos
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-600">
+                    Cada agendamento ocupa esse tempo fixo no calendário. Se a
+                    sua loja faz banhos rápidos, escolha 15 min. Pro padrão,
+                    deixe 30 min.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-2 sm:max-w-md sm:grid-cols-5">
+                {[15, 20, 30, 45, 60].map((opt) => {
+                  const active = slotMinutes === opt;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      disabled={pending}
+                      onClick={() => submitOperations(opt)}
+                      className={
+                        "rounded-md border px-3 py-2 text-sm font-medium transition disabled:opacity-60 " +
+                        (active
+                          ? "border-zinc-950 bg-zinc-950 text-white"
+                          : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400")
+                      }
+                    >
+                      {opt} min
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-xs text-zinc-500">
+                Atual: <span className="font-mono">{slotMinutes} min</span>. Mudança vale pros próximos agendamentos.
+              </p>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link
+              href="/app/configuracoes/horarios"
+              className="group flex items-center gap-3 rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-zinc-400"
+            >
+              <div className="flex size-10 items-center justify-center rounded-md bg-emerald-50 text-emerald-700">
+                <Clock className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-zinc-950">Horários</p>
+                <p className="text-xs text-zinc-600">
+                  Defina o funcionamento por calendário.
+                </p>
+              </div>
+              <ArrowRight className="size-4 text-zinc-400 transition group-hover:text-zinc-900" />
+            </Link>
+            <Link
+              href="/app/configuracoes/categorias"
+              className="group flex items-center gap-3 rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-zinc-400"
+            >
+              <div className="flex size-10 items-center justify-center rounded-md bg-sky-50 text-sky-700">
+                <Tags className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-zinc-950">
+                  Categorias financeiras
+                </p>
+                <p className="text-xs text-zinc-600">
+                  Crie, edite ou arquive categorias de receita e despesa.
+                </p>
+              </div>
+              <ArrowRight className="size-4 text-zinc-400 transition group-hover:text-zinc-900" />
+            </Link>
+          </div>
         </TabsContent>
 
         {/* VISUAL */}

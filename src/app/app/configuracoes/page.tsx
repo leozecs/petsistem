@@ -18,7 +18,7 @@ export default async function ConfiguracoesPage() {
   const { data: petshop } = await supabase
     .from("petshops")
     .select(
-      "id, name, legal_name, address, phone, whatsapp, email, primary_color, subdomain, slug, logo_path",
+      "id, name, legal_name, address, phone, whatsapp, email, primary_color, subdomain, slug, logo_path, slot_minutes",
     )
     .eq("id", membership.petshopId)
     .maybeSingle();
@@ -48,6 +48,7 @@ export default async function ConfiguracoesPage() {
         primaryColor: petshop.primary_color,
         subdomain: petshop.subdomain,
         logoUrl,
+        slotMinutes: petshop.slot_minutes ?? 30,
       }}
       rootDomain={ROOT_DOMAIN}
     />

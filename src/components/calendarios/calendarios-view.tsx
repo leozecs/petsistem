@@ -108,6 +108,7 @@ type Props = {
   schedules: ScheduleInput[];
   appointmentsByDay: Record<string, ApptSummary[]>;
   petshopName: string;
+  slotMinutes: number;
 };
 
 const HHMM = new Intl.DateTimeFormat("pt-BR", {
@@ -253,6 +254,7 @@ export function CalendariosView({
   schedules,
   appointmentsByDay,
   petshopName,
+  slotMinutes,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -378,14 +380,14 @@ export function CalendariosView({
       petshopMidnightUtc: petshopMidnight,
       schedules: effectiveSchedules(schedules),
       appointments: dayAppts,
-      slotDurationMin: 30,
-      stepMin: 30,
+      slotDurationMin: slotMinutes,
+      stepMin: slotMinutes,
     });
 
-    // A service of duration D needs ceil(D / 30) consecutive free 30-min slots
-    // starting at the anchor. Walk the array and keep anchors whose forward
-    // window is fully free AND contiguous (no gap across schedule windows).
-    const slotsNeeded = Math.max(1, Math.ceil(selectedService.duration_minutes / 30));
+    // A service of duration D needs ceil(D / slotMinutes) consecutive free
+    // anchor slots. Walk the array and keep anchors whose forward window is
+    // fully free AND contiguous (no gap across schedule windows).
+    const slotsNeeded = Math.max(1, Math.ceil(selectedService.duration_minutes / slotMinutes));
     const bookable: typeof rawSlots = [];
     for (let i = 0; i <= rawSlots.length - slotsNeeded; i++) {
       const window = rawSlots.slice(i, i + slotsNeeded);

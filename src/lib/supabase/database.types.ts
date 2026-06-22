@@ -1597,6 +1597,7 @@ export type Database = {
           plan_name: string
           primary_color: string
           settings: Json
+          slot_minutes: number
           slug: string
           status: Database["public"]["Enums"]["petshop_status"]
           subdomain: string
@@ -1621,6 +1622,7 @@ export type Database = {
           plan_name?: string
           primary_color?: string
           settings?: Json
+          slot_minutes?: number
           slug: string
           status?: Database["public"]["Enums"]["petshop_status"]
           subdomain: string
@@ -1645,6 +1647,7 @@ export type Database = {
           plan_name?: string
           primary_color?: string
           settings?: Json
+          slot_minutes?: number
           slug?: string
           status?: Database["public"]["Enums"]["petshop_status"]
           subdomain?: string
