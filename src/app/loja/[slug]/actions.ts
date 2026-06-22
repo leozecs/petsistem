@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseBrPhone } from "@/lib/phone";
 import { computeAvailability, effectiveSchedules } from "@/lib/calendar/availability";
 import {
   addMinutes,
@@ -171,7 +172,15 @@ const bookingSchema = z.object({
   area: z.enum(["grooming", "veterinary"]),
   service_id: z.string().uuid("Serviço obrigatório"),
   tutor_name: z.string().trim().min(2, "Informe o nome completo").max(120),
-  whatsapp: z.string().trim().min(8, "Informe o WhatsApp").max(40),
+  whatsapp: z
+    .string()
+    .trim()
+    .min(8, "Informe o WhatsApp")
+    .max(40)
+    .refine((v) => parseBrPhone(v) !== null, {
+      message: "WhatsApp inválido. Use formato (11) 99999-8888.",
+    })
+    .transform((v) => parseBrPhone(v) ?? v),
   pet_name: z.string().trim().min(1, "Informe o nome do pet").max(80),
   species: z.string().trim().max(40).optional(),
   breed: z.string().trim().max(80).optional(),
