@@ -10,6 +10,10 @@
     {
       "path": "/api/cron/cleanup-login-attempts",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/expire-trials",
+      "schedule": "5 3 * * *"
     }
   ]
 }

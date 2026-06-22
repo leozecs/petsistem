@@ -12,6 +12,7 @@ import {
   Search,
   ShieldCheck,
   Store,
+  Trash2,
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/table";
 import { SectionHeading } from "@/components/app/section-heading";
 import {
+  deleteUser,
   getUserMemberships,
   resetUserPassword,
   setMembershipStatus,
@@ -151,6 +153,31 @@ export function UsuariosManager({
         setResetDialog({ open: true, password: result.password });
       } else {
         toast.error(result.error ?? "Erro ao gerar senha");
+      }
+    });
+  }
+
+  function handleDelete(user: UserRow) {
+    if (user.global_role === "admin_master") {
+      toast.error("Usuários Admin Master não podem ser excluídos por esta tela.");
+      return;
+    }
+    if (
+      !confirm(
+        `Excluir ${user.email}?\n\nO login e as memberships serão removidos. Os dados operacionais e de auditoria serão preservados.`,
+      )
+    )
+      return;
+
+    startTransition(async () => {
+      const result = await deleteUser(user.id);
+      if (result.ok) {
+        if (result.warning) toast.warning(result.warning);
+        else toast.success("Usuário excluído");
+        setDrawerUser(null);
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao excluir usuário");
       }
     });
   }
@@ -392,6 +419,24 @@ export function UsuariosManager({
                   ela só aparece uma vez.
                 </p>
               </div>
+
+              {drawerUser.global_role !== "admin_master" ? (
+                <div className="border-t border-zinc-100 pt-4">
+                  <Button
+                    onClick={() => handleDelete(drawerUser)}
+                    disabled={pending}
+                    variant="outline"
+                    className="w-full rounded-md border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
+                  >
+                    <Trash2 className="size-4" />
+                    Excluir usuário
+                  </Button>
+                  <p className="mt-2 text-[0.6875rem] text-zinc-500">
+                    Remove o login e as memberships. Dados operacionais e auditoria são
+                    preservados.
+                  </p>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </SheetContent>
