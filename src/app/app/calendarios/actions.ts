@@ -343,6 +343,86 @@ export async function cancelAppointment(id: string): Promise<{ ok: boolean; erro
   return updateAppointmentStatus(id, "cancelled");
 }
 
+const PAYMENT_METHODS = ["pix", "cash", "card", "transfer", "other"] as const;
+const finalizeSchema = z.object({
+  id: z.string().uuid(),
+  payment_method: z.enum(PAYMENT_METHODS),
+  amount_cents: z.number().int().min(0).optional(),
+});
+
+/**
+ * Finaliza atendimento + lança receita num passo só. Movimenta status do
+ * appointment para `finished` (respeitando canTransition) e seta paid_at,
+ * payment_method, paid_by, price_cents no appointment_charges. Se amount_cents
+ * for omitido, mantém o valor atual do charge (vindo do service).
+ */
+export async function finalizeAppointment(
+  input: z.infer<typeof finalizeSchema>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant", "veterinarian"])) {
+    return { ok: false, error: "Sem permissão." };
+  }
+  const parsed = finalizeSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Dados inválidos." };
+
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  const allowed = allowedAreasForRole(membership.role);
+  const { data: appt, error: lookupErr } = await supabase
+    .from("appointments")
+    .select("id, status, calendar:calendars!inner(area)")
+    .eq("id", parsed.data.id)
+    .eq("petshop_id", membership.petshopId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (lookupErr) return { ok: false, error: lookupErr.message };
+  if (!appt) return { ok: false, error: "Agendamento não encontrado." };
+  const apptArea = (appt.calendar as { area: ServiceArea } | null)?.area;
+  if (!apptArea || !allowed.includes(apptArea)) {
+    return { ok: false, error: "Você não pode alterar esse agendamento." };
+  }
+  if (!canTransition(appt.status, "finished")) {
+    return { ok: false, error: "Só dá pra finalizar quando o atendimento está em andamento." };
+  }
+
+  const nowIso = new Date().toISOString();
+
+  // Update charge: paid_at, payment_method, paid_by, optionally price_cents.
+  const chargeUpdate: {
+    paid_at: string;
+    payment_method: (typeof PAYMENT_METHODS)[number];
+    paid_by: string;
+    price_cents?: number;
+  } = {
+    paid_at: nowIso,
+    payment_method: parsed.data.payment_method,
+    paid_by: session.user.id,
+  };
+  if (parsed.data.amount_cents !== undefined) {
+    chargeUpdate.price_cents = parsed.data.amount_cents;
+  }
+  const { error: chargeErr } = await supabase
+    .from("appointment_charges")
+    .update(chargeUpdate)
+    .eq("appointment_id", parsed.data.id)
+    .eq("petshop_id", membership.petshopId);
+  if (chargeErr) return { ok: false, error: chargeErr.message };
+
+  // Advance status to finished.
+  const { error: stErr } = await supabase
+    .from("appointments")
+    .update({ status: "finished", updated_by: session.user.id })
+    .eq("id", parsed.data.id)
+    .eq("petshop_id", membership.petshopId);
+  if (stErr) return { ok: false, error: stErr.message };
+
+  revalidatePath("/app/calendarios");
+  revalidatePath("/app/financeiro");
+  return { ok: true };
+}
+
 function friendlyError(raw: string): string {
   if (raw.includes("appointments_no_overlap")) {
     return "Esse horário foi ocupado por outro agendamento. Atualize a página e escolha outro.";

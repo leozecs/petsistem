@@ -136,7 +136,9 @@ export default async function FinanceiroPage() {
     appointment: { status: string; starts_at: string } | null;
   };
   const pendingCharges = ((pendingChargesRes.data ?? []) as PendingCharge[]).filter(
-    (c) => c.appointment && ["confirmed", "in_progress", "finalizado"].includes(c.appointment.status),
+    (c) =>
+      c.appointment &&
+      ["confirmed", "checked_in", "in_progress", "finished"].includes(c.appointment.status),
   );
   const aReceber = sum(pendingCharges);
   const aPagar = despesaMesTotal - despesaMesPaga;

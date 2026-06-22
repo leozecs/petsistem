@@ -31,12 +31,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   cancelAppointment,
   createClientInline,
   createPetInline,
+  finalizeAppointment,
   saveAppointment,
   updateAppointmentStatus,
 } from "@/app/app/calendarios/actions";
@@ -78,6 +87,7 @@ type ApptSummary = {
   tutor_name: string | null;
   tutor_phone: string | null;
   tutor_whatsapp: string | null;
+  price_cents: number;
 };
 
 type Props = {
@@ -250,6 +260,13 @@ export function CalendariosView({
     apptId: string;
     title: string;
     submitLabel: string;
+  } | null>(null);
+  // Finalizar atendimento — abre dialog pedindo método de pagamento antes de
+  // marcar status=finished. Recibo entra automático no Financeiro.
+  const [finalize, setFinalize] = useState<{
+    apptId: string;
+    title: string;
+    priceCents: number;
   } | null>(null);
 
   // Re-evaluate "today" once a minute so the highlight crosses midnight without a
@@ -519,6 +536,16 @@ export function CalendariosView({
         apptId,
         title: `${appt.service_name ?? "Atendimento"} — ${appt.pet_name ?? appt.tutor_name ?? "Pet"}`,
         submitLabel: "Salvar e iniciar",
+      });
+      return;
+    }
+    // Finalizar intercept: pede método de pagamento antes de marcar finished.
+    // Receita entra no Financeiro automaticamente.
+    if (current === "in_progress" && target === "finished") {
+      setFinalize({
+        apptId,
+        title: `${appt.service_name ?? "Atendimento"} — ${appt.pet_name ?? appt.tutor_name ?? "Pet"}`,
+        priceCents: appt.price_cents,
       });
       return;
     }
@@ -1108,6 +1135,120 @@ export function CalendariosView({
         submitLabel={record?.submitLabel}
         onSaved={() => router.refresh()}
       />
+
+      <FinalizeDialog
+        target={finalize}
+        onClose={() => setFinalize(null)}
+        onDone={() => {
+          setFinalize(null);
+          router.refresh();
+        }}
+      />
     </motion.div>
+  );
+}
+
+type PaymentMethod = "pix" | "cash" | "card" | "transfer" | "other";
+
+function FinalizeDialog({
+  target,
+  onClose,
+  onDone,
+}: {
+  target: { apptId: string; title: string; priceCents: number } | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [amount, setAmount] = useState<string>("");
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (target) {
+      setPaymentMethod("pix");
+      setAmount((target.priceCents / 100).toFixed(2).replace(".", ","));
+    }
+  }, [target]);
+
+  if (!target) {
+    return (
+      <Dialog open={false} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent />
+      </Dialog>
+    );
+  }
+
+  const submit = () => {
+    const cents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
+    if (Number.isNaN(cents) || cents < 0) {
+      toast.error("Valor inválido.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await finalizeAppointment({
+        id: target.apptId,
+        payment_method: paymentMethod,
+        amount_cents: cents,
+      });
+      if (res.ok) {
+        toast.success("Atendimento finalizado. Receita lançada no Financeiro.");
+        onDone();
+      } else {
+        toast.error(res.error ?? "Erro ao finalizar.");
+      }
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Finalizar atendimento</DialogTitle>
+          <DialogDescription>{target.title}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="fin-amount">Valor cobrado (R$)</Label>
+            <Input
+              id="fin-amount"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              disabled={pending}
+            />
+            <p className="text-xs text-zinc-500">
+              Pré-preenchido pelo preço do serviço. Edite se houver desconto ou
+              acréscimo.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Forma de pagamento</Label>
+            <Select
+              value={paymentMethod}
+              onValueChange={(v) => v && setPaymentMethod(v as PaymentMethod)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pix">Pix</SelectItem>
+                <SelectItem value="cash">Dinheiro</SelectItem>
+                <SelectItem value="card">Cartão</SelectItem>
+                <SelectItem value="transfer">Transferência</SelectItem>
+                <SelectItem value="other">Outro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={submit} disabled={pending}>
+            {pending ? "Finalizando…" : "Finalizar e receber"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
