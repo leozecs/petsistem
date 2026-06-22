@@ -268,21 +268,42 @@ export async function saveAppointment(
     // New appointments start at `confirmed` — counter-staff bookings are valid
     // out of the box; no separate "confirm" gate. Drag back to `pending` is not
     // exposed in the UI but the enum still supports it for legacy rows.
-    const tracking_slug = generateTrackingSlug(
-      petNameForSlug ?? parsed.data.tutor_name ?? null,
-      payload.starts_at,
-    );
-    const { data: inserted, error } = await supabase
-      .from("appointments")
-      .insert({
-        ...payload,
-        status: "confirmed",
-        tracking_slug,
-        created_by: session.user.id,
-      })
-      .select("id")
-      .single();
-    if (error) return { ok: false, error: friendlyError(error.message) };
+    // Retry até 3x se o slug colidir com outro existente (unique constraint).
+    // Cada tentativa regenera o token aleatório no fim do slug. 36^4 = 1.6M
+    // variantes por (pet, data), então colisão é raríssima — mas se ocorrer,
+    // o agendamento falharia silenciosamente com 23505 sem retry.
+    let inserted: { id: string } | null = null;
+    let lastErr: { code?: string; message: string } | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const tracking_slug = generateTrackingSlug(
+        petNameForSlug ?? parsed.data.tutor_name ?? null,
+        payload.starts_at,
+      );
+      const { data, error } = await supabase
+        .from("appointments")
+        .insert({
+          ...payload,
+          status: "confirmed",
+          tracking_slug,
+          created_by: session.user.id,
+        })
+        .select("id")
+        .single();
+      if (!error) {
+        inserted = data;
+        lastErr = null;
+        break;
+      }
+      lastErr = error;
+      // Só retry se for unique violation no tracking_slug. Outros erros (no_overlap,
+      // RLS, FK) propagam direto.
+      const isSlugCollision =
+        error.code === "23505" &&
+        (error.message.includes("tracking_slug") ||
+          error.message.includes("appointments_tracking_slug_idx"));
+      if (!isSlugCollision) break;
+    }
+    if (lastErr) return { ok: false, error: friendlyError(lastErr.message) };
 
     // Auto-create the charge with the service's current price. The /app/caixa
     // page lists every unpaid charge so the operator can collect at the end of
