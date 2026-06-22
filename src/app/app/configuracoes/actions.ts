@@ -199,6 +199,18 @@ export async function uploadPetshopLogo(formData: FormData): Promise<
   const path = `${parsed.data.petshop_id}/logo.${parsed.data.ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
+  // Antes de subir o novo arquivo, pega o path atual (se existir e for diferente)
+  // pra apagar do bucket — evita órfãos quando dono troca de extensão (png→jpg).
+  // upsert:true cobre o caso de mesmo path; troca de extensão deixaria órfão.
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+  const { data: current } = await supabase
+    .from("petshops")
+    .select("logo_path")
+    .eq("id", membership.petshopId)
+    .maybeSingle();
+  const oldPath = current?.logo_path;
+
   const { error: uploadErr } = await admin.storage
     .from("petshop-logos")
     .upload(path, buffer, {
@@ -208,13 +220,17 @@ export async function uploadPetshopLogo(formData: FormData): Promise<
   if (uploadErr) return { ok: false, error: uploadErr.message };
 
   // Atualiza logo_path no petshop pra o cache de leitura saber qual extensão.
-  const supabase = await createClient();
-  if (!supabase) return { ok: false, error: "Supabase indisponível." };
   const { error: updateErr } = await supabase
     .from("petshops")
     .update({ logo_path: path, updated_by: session.user.id })
     .eq("id", membership.petshopId);
   if (updateErr) return { ok: false, error: updateErr.message };
+
+  // Best-effort: apaga o arquivo antigo se mudou de extensão. Falha aqui não
+  // bloqueia o upload — o cron de orphan cleanup recolhe depois.
+  if (oldPath && oldPath !== path) {
+    await admin.storage.from("petshop-logos").remove([oldPath]);
+  }
 
   // Public URL pra preview imediato no client.
   const { data: pub } = admin.storage.from("petshop-logos").getPublicUrl(path);
