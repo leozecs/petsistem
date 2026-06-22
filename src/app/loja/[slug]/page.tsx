@@ -72,7 +72,6 @@ export default async function StorefrontPage({
       slug={slug}
       storeName={petshop.name}
       storeStatus={petshop.status}
-      primaryColor={petshop.primary_color}
       services={services}
       address={petshop.address ?? null}
       phone={petshop.phone ?? null}

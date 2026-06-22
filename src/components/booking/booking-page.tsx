@@ -60,7 +60,6 @@ type Props = {
   slug: string;
   storeName: string;
   storeStatus: string;
-  primaryColor: string;
   services: BookingService[];
   address: string | null;
   phone: string | null;
@@ -83,7 +82,6 @@ export function BookingPage({
   slug,
   storeName,
   storeStatus,
-  primaryColor,
   services,
   address,
   phone,
@@ -194,10 +192,7 @@ export function BookingPage({
       <main className="grid min-h-[100dvh] place-items-center bg-zinc-50 px-4">
         <Card className="max-w-md rounded-xl border-emerald-200 bg-white shadow-lg shadow-emerald-900/5">
           <CardContent className="space-y-3 p-8 text-center">
-            <div
-              className="mx-auto flex size-14 items-center justify-center rounded-full"
-              style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}
-            >
+            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
               <CheckCircle2 className="size-8" />
             </div>
             <h1 className="text-2xl font-semibold text-zinc-950">
@@ -218,8 +213,7 @@ export function BookingPage({
                 setBreed("");
                 setNotes("");
               }}
-              className="rounded-md"
-              style={{ backgroundColor: primaryColor, color: "white" }}
+              className="rounded-md bg-emerald-700 text-white hover:bg-emerald-800"
             >
               Fazer outro agendamento
             </Button>
@@ -251,12 +245,7 @@ export function BookingPage({
               />
             ) : null}
             <div className="hidden sm:block">
-              <p
-                className="text-sm font-semibold"
-                style={{ color: primaryColor }}
-              >
-                {storeName}
-              </p>
+              <p className="text-sm font-semibold text-zinc-950">{storeName}</p>
               <p className="text-xs text-zinc-500">Agendamento online</p>
             </div>
           </div>
@@ -276,8 +265,7 @@ export function BookingPage({
       <section className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="mb-8 text-center sm:mb-10">
           <p
-            className="text-xs font-semibold uppercase tracking-wide"
-            style={{ color: primaryColor }}
+            className="text-xs font-semibold uppercase tracking-wide text-emerald-700"
           >
             {storeName}
           </p>
@@ -413,8 +401,7 @@ export function BookingPage({
                 <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4">
                   <div className="mb-3 flex items-center gap-2">
                     <CalendarCheck
-                      className="size-4"
-                      style={{ color: primaryColor }}
+                      className="size-4 text-emerald-700"
                     />
                     <p className="text-sm font-semibold">Escolha o dia</p>
                   </div>
@@ -433,7 +420,7 @@ export function BookingPage({
                 <div className="flex flex-col gap-4">
                   <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4">
                     <div className="mb-3 flex items-center gap-2">
-                      <Clock className="size-4" style={{ color: primaryColor }} />
+                      <Clock className="size-4 text-emerald-700" />
                       <p className="text-sm font-semibold">Horário</p>
                     </div>
                     {!selectedDate ? (
@@ -475,7 +462,7 @@ export function BookingPage({
 
                   <div className="rounded-xl border border-zinc-200 bg-white p-4">
                     <div className="flex items-center gap-2">
-                      <PawPrint className="size-4" style={{ color: primaryColor }} />
+                      <PawPrint className="size-4 text-emerald-700" />
                       <p className="text-sm font-semibold">Resumo</p>
                     </div>
                     <div className="mt-3 space-y-2 text-sm">
@@ -502,7 +489,7 @@ export function BookingPage({
                       {selectedService ? (
                         <div className="flex justify-between gap-3 border-t border-zinc-100 pt-2">
                           <span className="text-zinc-500">Valor</span>
-                          <strong style={{ color: primaryColor }}>
+                          <strong className="text-emerald-700">
                             {formatBRL(selectedService.priceCents)}
                           </strong>
                         </div>
@@ -542,8 +529,7 @@ export function BookingPage({
                   !whatsapp ||
                   !petName
                 }
-                className="h-12 w-full rounded-md text-white"
-                style={{ backgroundColor: primaryColor }}
+                className="h-12 w-full rounded-md text-white bg-emerald-700"
               >
                 {pending ? (
                   <>
@@ -567,8 +553,7 @@ export function BookingPage({
             {address ? (
               <div className="flex items-start gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700">
                 <MapPin
-                  className="mt-0.5 size-4 shrink-0"
-                  style={{ color: primaryColor }}
+                  className="mt-0.5 size-4 shrink-0 text-emerald-700"
                 />
                 <span className="whitespace-pre-wrap">{address}</span>
               </div>
@@ -578,7 +563,7 @@ export function BookingPage({
                 href={`tel:${phone}`}
                 className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700 transition hover:bg-zinc-50"
               >
-                <Phone className="size-4" style={{ color: primaryColor }} />
+                <Phone className="size-4 text-emerald-700" />
                 {phone}
               </a>
             ) : null}

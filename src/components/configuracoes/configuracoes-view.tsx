@@ -172,7 +172,7 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
     <div>
       <SectionHeading
         title="Configurações"
-        description="Edite os dados da sua loja e a aparência da landing pública."
+        description="Edite os dados da sua loja, intervalo de agendamento e cor da barra lateral."
       />
 
       <Tabs defaultValue="general" className="space-y-6">
@@ -485,11 +485,11 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
             <CardContent className="space-y-4 p-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-zinc-950">
                 <Palette className="size-4 text-zinc-700" />
-                Cor primária
+                Cor da barra lateral
               </div>
               <p className="text-xs text-zinc-500">
-                Cor usada na landing pública do seu subdomínio (botões, acentos
-                de texto e elementos de destaque).
+                Cor de fundo da barra lateral do painel. Não afeta a página de
+                agendamento pública nem a página pública de acompanhamento.
               </p>
               <form onSubmit={submitColor} className="flex flex-wrap items-end gap-3">
                 <div className="space-y-2">

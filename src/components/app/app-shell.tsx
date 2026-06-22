@@ -178,8 +178,20 @@ function SidebarContent({ session, variant }: { session: SessionContext; variant
   const pathname = usePathname();
   const nav = navigationForSession(session);
 
+  // Sidebar pinta com primary_color da loja ativa (tenant). Admin Master usa
+  // zinc-950 fixo. Default fallback continua zinc-950 pra cobrir loja sem
+  // cor configurada.
+  const tenantColor =
+    variant === "tenant" ? session.activeMembership?.petshop.primaryColor : null;
+  const sidebarBg = tenantColor && /^#[0-9a-fA-F]{6}$/.test(tenantColor)
+    ? tenantColor
+    : "#09090b"; // zinc-950
+
   return (
-    <div className="flex h-full flex-col bg-zinc-950 text-white">
+    <div
+      className="flex h-full flex-col text-white"
+      style={{ backgroundColor: sidebarBg }}
+    >
       <div className="border-b border-white/10 p-5">
         <SidebarHeader session={session} variant={variant} />
       </div>
