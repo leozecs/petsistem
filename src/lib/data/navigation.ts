@@ -43,8 +43,7 @@ export const ownerNav: NavItem[] = [
   { href: "/app/veterinarios", label: "Veterinários", icon: Stethoscope },
   { href: "/app/servicos", label: "Serviços", icon: Scissors },
   { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
-  { href: "/app/caixa", label: "Caixa", icon: Receipt },
-  { href: "/app/relatorios", label: "Relatórios", icon: FileBarChart },
+  { href: "/app/financeiro", label: "Financeiro", icon: Receipt },
   { href: "/app/assinatura", label: "Assinatura", icon: CreditCard },
   { href: "/app/configuracoes/horarios", label: "Horários", icon: Clock },
   { href: "/app/configuracoes/categorias", label: "Categorias", icon: Tags },
@@ -56,7 +55,7 @@ export const attendantNav: NavItem[] = [
   { href: "/app/calendarios", label: "Agenda Banho e Tosa", icon: CalendarCheck },
   { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
   { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
-  { href: "/app/caixa", label: "Caixa", icon: Receipt },
+  { href: "/app/financeiro", label: "Financeiro", icon: Receipt },
 ];
 
 export const veterinarianNav: NavItem[] = [
