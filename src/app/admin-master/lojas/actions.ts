@@ -320,6 +320,92 @@ export async function setPetshopStatus(
 }
 
 // ---------------------------------------------------------------------------
+// EXCLUSÃO PERMANENTE — IRREVERSÍVEL
+// ---------------------------------------------------------------------------
+
+const deleteSchema = z.object({
+  id: z.string().uuid(),
+  confirm_slug: z.string().trim().min(1),
+});
+
+/**
+ * HARD DELETE da loja inteira. Apaga petshops row (cascade leva calendars,
+ * services, appointments, clients, pets, employees, veterinarians, charges,
+ * expenses, revenue_items, categories, checklists, memberships,
+ * subscriptions, payments, login_attempts via tabelas vinculadas).
+ *
+ * Também varre os buckets `appointment-photos/<id>/...` e
+ * `petshop-logos/<id>/...` removendo todos os arquivos.
+ *
+ * NÃO deleta auth users dos donos — eles podem pertencer a outras lojas. Se
+ * o owner ficar sem memberships, mantém a conta auth (sem acesso a nada).
+ *
+ * Confirmação dupla: caller precisa enviar o slug atual da loja no parâmetro
+ * `confirm_slug`. Bate exatamente ou nega — evita clique acidental.
+ */
+export async function permanentlyDeletePetshop(input: {
+  id: string;
+  confirm_slug: string;
+}): Promise<ActionState> {
+  const guard = await requireAdminMaster();
+  if (!guard.ok) return { ok: false, error: "Apenas Admin Master." };
+
+  const parsed = deleteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Dados inválidos." };
+
+  const admin = createAdminClient();
+  if (!admin) return { ok: false, error: "Service role indisponível." };
+
+  // Confere que a loja existe e que o slug bate (dupla verificação).
+  const { data: shop } = await admin
+    .from("petshops")
+    .select("id, slug, name")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+  if (!shop) return { ok: false, error: "Loja não encontrada." };
+  if (shop.slug !== parsed.data.confirm_slug.trim().toLowerCase()) {
+    return {
+      ok: false,
+      error: `Confirmação não bate. Digite exatamente "${shop.slug}" pra confirmar.`,
+    };
+  }
+
+  // 1) Limpa storage: appointment-photos/<id>/...
+  // List + remove recursivo. supabase storage `list` retorna 100 por página.
+  async function purgeBucketPrefix(bucket: string, prefix: string) {
+    const queue: string[] = [prefix];
+    while (queue.length > 0) {
+      const dir = queue.shift()!;
+      const { data: items } = await admin!.storage.from(bucket).list(dir, {
+        limit: 1000,
+      });
+      if (!items || items.length === 0) continue;
+      const files = items.filter((i) => i.id !== null).map((i) => `${dir}/${i.name}`);
+      const folders = items.filter((i) => i.id === null);
+      if (files.length > 0) {
+        for (let i = 0; i < files.length; i += 100) {
+          await admin!.storage.from(bucket).remove(files.slice(i, i + 100));
+        }
+      }
+      for (const f of folders) queue.push(`${dir}/${f.name}`);
+    }
+  }
+  await purgeBucketPrefix("appointment-photos", parsed.data.id);
+  await purgeBucketPrefix("petshop-logos", parsed.data.id);
+
+  // 2) HARD DELETE petshop. FK cascade limpa tudo no DB.
+  const { error: delErr } = await admin
+    .from("petshops")
+    .delete()
+    .eq("id", parsed.data.id);
+  if (delErr) return { ok: false, error: delErr.message };
+
+  revalidatePath("/admin-master/lojas");
+  revalidatePath("/admin-master");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // MÉTRICAS DA LOJA (drawer)
 // ---------------------------------------------------------------------------
 

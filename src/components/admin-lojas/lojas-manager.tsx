@@ -18,6 +18,7 @@ import {
   PenLine,
   Plus,
   Store,
+  Trash2,
   TrendingUp,
   User as UserIcon,
   Users as UsersIcon,
@@ -56,6 +57,7 @@ import {
   createPetshopWithOwner,
   getPetshopMetrics,
   savePetshop,
+  permanentlyDeletePetshop,
   setPetshopStatus,
   type PetshopMetrics,
 } from "@/app/admin-master/lojas/actions";
@@ -148,6 +150,8 @@ export function LojasManager({
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<PetshopRow | null>(null);
   const [drawerShop, setDrawerShop] = useState<PetshopRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PetshopRow | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [metrics, setMetrics] = useState<PetshopMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -270,6 +274,29 @@ export function LojasManager({
         }
       } else {
         toast.error(result.error ?? "Erro");
+      }
+    });
+  }
+
+  function handlePermanentDelete() {
+    if (!deleteTarget) return;
+    if (deleteConfirmInput.trim().toLowerCase() !== deleteTarget.slug) {
+      toast.error(`Digite exatamente "${deleteTarget.slug}" pra confirmar.`);
+      return;
+    }
+    startTransition(async () => {
+      const result = await permanentlyDeletePetshop({
+        id: deleteTarget.id,
+        confirm_slug: deleteTarget.slug,
+      });
+      if (result.ok) {
+        toast.success(`Loja "${deleteTarget.name}" excluída permanentemente.`);
+        setDeleteTarget(null);
+        setDeleteConfirmInput("");
+        setDrawerShop(null);
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao excluir loja.");
       }
     });
   }
@@ -500,10 +527,101 @@ export function LojasManager({
                   )}
                 </Button>
               </div>
+
+              <div className="rounded-md border border-rose-200 bg-rose-50 p-3">
+                <p className="text-xs font-semibold text-rose-900">
+                  Zona de perigo
+                </p>
+                <p className="mt-1 text-xs text-rose-800">
+                  Excluir a loja apaga PERMANENTEMENTE clientes, pets,
+                  agendamentos, financeiro, fotos e usuários da loja. Não tem
+                  como desfazer. Use só se a loja não vai voltar.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => {
+                    setDeleteTarget(drawerShop);
+                    setDeleteConfirmInput("");
+                  }}
+                  className="mt-3 w-full rounded-md border-rose-300 bg-white text-rose-700 hover:bg-rose-100"
+                >
+                  <Trash2 className="size-4" />
+                  Excluir permanentemente
+                </Button>
+              </div>
             </div>
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteTarget(null);
+            setDeleteConfirmInput("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-rose-700">
+              Excluir loja permanentemente
+            </DialogTitle>
+            <DialogDescription>
+              Essa ação é irreversível. Apaga clientes, pets, agendamentos,
+              financeiro, fotos e remove o vínculo de todos os usuários da loja.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget ? (
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-700">
+                Pra confirmar, digite o slug da loja:{" "}
+                <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-900">
+                  {deleteTarget.slug}
+                </code>
+              </p>
+              <Input
+                autoFocus
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder={deleteTarget.slug}
+                disabled={pending}
+                className="font-mono"
+              />
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteConfirmInput("");
+              }}
+              disabled={pending}
+              className="rounded-md border-zinc-300 bg-white"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handlePermanentDelete}
+              disabled={
+                pending ||
+                !deleteTarget ||
+                deleteConfirmInput.trim().toLowerCase() !== deleteTarget.slug
+              }
+              className="rounded-md bg-rose-700 text-white hover:bg-rose-800 disabled:opacity-60"
+            >
+              <Trash2 className="size-4" />
+              {pending ? "Excluindo…" : "Excluir agora"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

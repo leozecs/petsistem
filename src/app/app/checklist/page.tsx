@@ -41,7 +41,7 @@ export default async function ChecklistPage() {
   const { data: apptsRaw } = await supabase
     .from("appointments")
     .select(
-      "id, starts_at, ends_at, status, tracking_slug, pet:pets(name, species), service:services(id, name, area), calendar:calendars!inner(area)",
+      "id, starts_at, ends_at, status, tracking_slug, tutor_name, pet:pets(name, species), service:services(id, name, area), client:clients(name, phone, whatsapp), calendar:calendars!inner(area)",
     )
     .eq("petshop_id", membership.petshopId)
     .gte("starts_at", startTs)
@@ -56,8 +56,10 @@ export default async function ChecklistPage() {
     ends_at: string;
     status: string;
     tracking_slug: string | null;
+    tutor_name: string | null;
     pet: { name: string; species: string } | null;
     service: { id: string; name: string; area: ServiceArea } | null;
+    client: { name: string; phone: string; whatsapp: string | null } | null;
     calendar: { area: ServiceArea } | null;
   };
 
@@ -152,6 +154,8 @@ export default async function ChecklistPage() {
       status: a.status as ChecklistCard["status"],
       startIso: a.starts_at,
       trackingSlug: a.tracking_slug,
+      tutorWhatsapp: a.client?.whatsapp ?? a.client?.phone ?? null,
+      tutorName: a.tutor_name ?? a.client?.name ?? null,
       steps: steps.map((s) => {
         const row = checklistsForAppt.find((c) => c.step_id === s.id);
         const photos = row

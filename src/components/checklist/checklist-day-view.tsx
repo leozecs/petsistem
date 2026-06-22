@@ -9,6 +9,7 @@ import {
   ChevronUp,
   ClipboardList,
   Link as LinkIcon,
+  MessageCircle,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +38,8 @@ export type ChecklistCard = {
   status: Status;
   startIso: string;
   trackingSlug: string | null;
+  tutorWhatsapp: string | null;
+  tutorName: string | null;
   steps: ChecklistStep[];
 };
 
@@ -165,7 +168,11 @@ function ChecklistCardItem({ card }: { card: ChecklistCard }) {
               </p>
             )}
             {card.trackingSlug ? (
-              <TrackingLinkButton slug={card.trackingSlug} petName={card.petName} />
+              <TrackingLinkButton
+                slug={card.trackingSlug}
+                petName={card.petName}
+                tutorWhatsapp={card.tutorWhatsapp}
+              />
             ) : null}
           </div>
         ) : null}
@@ -325,7 +332,15 @@ function CopyLinkIconButton({ slug, petName }: { slug: string; petName: string }
   );
 }
 
-function TrackingLinkButton({ slug, petName }: { slug: string; petName: string }) {
+function TrackingLinkButton({
+  slug,
+  petName,
+  tutorWhatsapp,
+}: {
+  slug: string;
+  petName: string;
+  tutorWhatsapp: string | null;
+}) {
   const url =
     typeof window !== "undefined"
       ? `${window.location.origin}/acompanhamento/${slug}`
@@ -340,18 +355,41 @@ function TrackingLinkButton({ slug, petName }: { slug: string; petName: string }
     }
   };
 
+  // wa.me espera só dígitos. Se tem whatsapp do tutor, abre conversa direta com
+  // texto pronto. Sem whatsapp, abre wa.me sem número (tutor escolhe contato).
+  const waDigits = tutorWhatsapp ? tutorWhatsapp.replace(/\D/g, "") : "";
+  const waText = encodeURIComponent(
+    `Oi! Acompanhe o atendimento de ${petName} pelo link: ${url}`,
+  );
+  const waUrl = waDigits
+    ? `https://wa.me/${waDigits}?text=${waText}`
+    : `https://wa.me/?text=${waText}`;
+
   return (
-    <div className="mt-4 flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-      <LinkIcon className="size-4 shrink-0 text-zinc-500" />
-      <code className="flex-1 truncate font-mono text-[12px] text-zinc-700">{url}</code>
-      <button
-        type="button"
-        onClick={copy}
-        className="inline-flex items-center gap-1.5 rounded-md bg-zinc-950 px-2.5 py-1 text-[12px] font-medium text-white transition hover:bg-zinc-800"
-        aria-label={`Copiar link de acompanhamento de ${petName}`}
+    <div className="mt-4 space-y-2">
+      <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+        <LinkIcon className="size-4 shrink-0 text-zinc-500" />
+        <code className="flex-1 truncate font-mono text-[12px] text-zinc-700">{url}</code>
+        <button
+          type="button"
+          onClick={copy}
+          className="inline-flex items-center gap-1.5 rounded-md bg-zinc-950 px-2.5 py-1 text-[12px] font-medium text-white transition hover:bg-zinc-800"
+          aria-label={`Copiar link de acompanhamento de ${petName}`}
+        >
+          Copiar
+        </button>
+      </div>
+      <a
+        href={waUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-emerald-600 bg-emerald-600 px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-emerald-700"
       >
-        Copiar
-      </button>
+        <MessageCircle className="size-4" />
+        {waDigits
+          ? "Enviar link pelo WhatsApp"
+          : "Compartilhar link no WhatsApp"}
+      </a>
     </div>
   );
 }
