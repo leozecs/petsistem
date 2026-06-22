@@ -33,6 +33,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { PetsistemLogo } from "@/components/brand/logo";
+import { isPetshopAcceptingBookings } from "@/lib/petshop-status";
 import { cn } from "@/lib/utils";
 import {
   createPublicBooking,
@@ -176,7 +177,7 @@ export function BookingPage({
     });
   }
 
-  if (storeStatus !== "active") {
+  if (!isPetshopAcceptingBookings(storeStatus)) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-zinc-50 px-4">
         <div className="max-w-md rounded-xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-900">

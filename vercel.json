@@ -1,5 +1,19 @@
 {
   "framework": "nextjs",
   "installCommand": "npm install",
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-orphan-photos",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-login-attempts",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/expire-trials",
+      "schedule": "5 3 * * *"
+    }
+  ]
 }

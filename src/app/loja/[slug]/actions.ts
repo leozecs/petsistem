@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isPetshopAcceptingBookings } from "@/lib/petshop-status";
 import { computeAvailability, effectiveSchedules } from "@/lib/calendar/availability";
 import {
   addMinutes,
@@ -49,6 +50,9 @@ export async function getPublicSlots(input: {
     .is("deleted_at", null)
     .maybeSingle();
   if (!petshop) return { ok: false, error: "Loja não encontrada." };
+  if (!isPetshopAcceptingBookings(petshop.status)) {
+    return { ok: false, error: "Esta loja não está aceitando agendamentos no momento." };
+  }
 
   const { data: service } = await admin
     .from("services")
@@ -222,7 +226,7 @@ export async function createPublicBooking(
     .is("deleted_at", null)
     .maybeSingle();
   if (!petshop) return { ok: false, error: "Loja não encontrada." };
-  if (petshop.status !== "active") {
+  if (!isPetshopAcceptingBookings(petshop.status)) {
     return { ok: false, error: "Esta loja não está aceitando agendamentos no momento." };
   }
 
