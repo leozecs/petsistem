@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
-import { petshopMinutesIntoDay, petshopWeekday, petshopDateOf, utcInstantOfPetshopMidnight, parseTimeOfDayToMinutes } from "@/lib/calendar/time";
+import { isPetshopToday, petshopMinutesIntoDay, petshopWeekday, petshopDateOf, utcInstantOfPetshopMidnight, parseTimeOfDayToMinutes } from "@/lib/calendar/time";
 import { effectiveSchedules } from "@/lib/calendar/availability";
 import { canTransition } from "@/lib/calendar/status";
 import { generateTrackingSlug } from "@/lib/tracking/slug";
@@ -325,7 +325,7 @@ export async function updateAppointmentStatus(
   const allowed = allowedAreasForRole(membership.role);
   const { data: appt, error: lookupErr } = await supabase
     .from("appointments")
-    .select("id, status, calendar:calendars!inner(area)")
+    .select("id, status, starts_at, calendar:calendars!inner(area)")
     .eq("id", parsed.data.id)
     .eq("petshop_id", membership.petshopId)
     .is("deleted_at", null)
@@ -338,6 +338,21 @@ export async function updateAppointmentStatus(
   }
   if (!canTransition(appt.status, parsed.data.status)) {
     return { ok: false, error: "Transição de status não permitida." };
+  }
+
+  // Avanços operacionais (check-in / iniciar / finalizar) só fazem sentido no
+  // dia do atendimento. Cancelar/no-show e voltar status (undo) seguem livres.
+  // Se precisar antecipar/atrasar o dia, use rescheduleAppointment.
+  const FORWARD_OPERATIONAL = new Set(["checked_in", "in_progress", "finished"]);
+  if (
+    FORWARD_OPERATIONAL.has(parsed.data.status) &&
+    !isPetshopToday(new Date(appt.starts_at))
+  ) {
+    return {
+      ok: false,
+      error:
+        "Esse atendimento não é hoje. Reagende pra hoje antes de avançar o status.",
+    };
   }
 
   const { error } = await supabase
@@ -384,7 +399,7 @@ export async function finalizeAppointment(
   const allowed = allowedAreasForRole(membership.role);
   const { data: appt, error: lookupErr } = await supabase
     .from("appointments")
-    .select("id, status, calendar:calendars!inner(area)")
+    .select("id, status, starts_at, calendar:calendars!inner(area)")
     .eq("id", parsed.data.id)
     .eq("petshop_id", membership.petshopId)
     .is("deleted_at", null)
@@ -397,6 +412,12 @@ export async function finalizeAppointment(
   }
   if (!canTransition(appt.status, "finished")) {
     return { ok: false, error: "Só dá pra finalizar quando o atendimento está em andamento." };
+  }
+  if (!isPetshopToday(new Date(appt.starts_at))) {
+    return {
+      ok: false,
+      error: "Esse atendimento não é hoje. Reagende pra hoje antes de finalizar.",
+    };
   }
 
   const nowIso = new Date().toISOString();
@@ -440,6 +461,125 @@ function friendlyError(raw: string): string {
     return "Esse horário foi ocupado por outro agendamento. Atualize a página e escolha outro.";
   }
   return raw;
+}
+
+const SLOT_MINUTES_RESCHED = 30;
+const rescheduleSchema = z.object({
+  id: z.string().uuid(),
+  starts_at: z.string().min(1),
+  ends_at: z.string().min(1),
+}).refine((v) => new Date(v.starts_at) < new Date(v.ends_at), {
+  path: ["ends_at"],
+  message: "Fim deve ser depois do início",
+});
+
+/**
+ * Move um agendamento pra outra data/hora preservando service/client/pet.
+ * Bloqueia se terminal (cancelled/no_show/finished). Mantém calendar_id atual.
+ * Valida 30-min slot + janela do calendário + sem overlap (via DB constraint).
+ */
+export async function rescheduleAppointment(
+  input: z.infer<typeof rescheduleSchema>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant", "veterinarian"])) {
+    return { ok: false, error: "Sem permissão." };
+  }
+  const parsed = rescheduleSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+
+  const allowed = allowedAreasForRole(membership.role);
+  const { data: appt, error: lookupErr } = await supabase
+    .from("appointments")
+    .select("id, status, calendar_id, service_id, calendar:calendars!inner(area)")
+    .eq("id", parsed.data.id)
+    .eq("petshop_id", membership.petshopId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (lookupErr) return { ok: false, error: lookupErr.message };
+  if (!appt) return { ok: false, error: "Agendamento não encontrado." };
+
+  const apptArea = (appt.calendar as { area: ServiceArea } | null)?.area;
+  if (!apptArea || !allowed.includes(apptArea)) {
+    return { ok: false, error: "Sem permissão na área deste agendamento." };
+  }
+  if (["cancelled", "no_show", "finished"].includes(appt.status)) {
+    return { ok: false, error: "Atendimento já encerrado. Crie um novo agendamento." };
+  }
+
+  // Slot fixo de 30 min (defesa contra ghost insert; mesma regra do create)
+  const startsAtDate = new Date(parsed.data.starts_at);
+  const endsAtDate = new Date(parsed.data.ends_at);
+  const durMin = Math.round((endsAtDate.getTime() - startsAtDate.getTime()) / 60_000);
+  if (durMin !== SLOT_MINUTES_RESCHED) {
+    return { ok: false, error: "Cada agendamento ocupa um slot fixo de 30 minutos." };
+  }
+
+  // Buscar duração real do service pra validar janela do calendário corretamente
+  const { data: svc } = await supabase
+    .from("services")
+    .select("duration_minutes")
+    .eq("id", appt.service_id)
+    .eq("petshop_id", membership.petshopId)
+    .maybeSingle();
+  const svcDuration = svc?.duration_minutes ?? SLOT_MINUTES_RESCHED;
+
+  // Valida que cai num horário de funcionamento ativo do calendário
+  const startsAtParts = petshopDateOf(startsAtDate);
+  const startsAtPetshopMidnight = utcInstantOfPetshopMidnight(
+    startsAtParts.year,
+    startsAtParts.month0,
+    startsAtParts.day,
+  );
+  const weekday = petshopWeekday(startsAtPetshopMidnight);
+  const startMinutes = petshopMinutesIntoDay(startsAtDate);
+  const endMinutes = startMinutes + svcDuration;
+
+  const { data: allSchedules, error: schedErr } = await supabase
+    .from("schedules")
+    .select("weekday, starts_at, ends_at, active")
+    .eq("calendar_id", appt.calendar_id)
+    .eq("petshop_id", membership.petshopId)
+    .eq("active", true);
+  if (schedErr) return { ok: false, error: schedErr.message };
+  const effective = effectiveSchedules(
+    (allSchedules ?? []).map((s) => ({
+      weekday: s.weekday,
+      starts_at: s.starts_at,
+      ends_at: s.ends_at,
+      active: s.active,
+    })),
+  );
+  const fitsSchedule = effective
+    .filter((s) => s.weekday === weekday && s.active)
+    .some((s) => {
+      const sStart = parseTimeOfDayToMinutes(s.starts_at);
+      const sEnd = parseTimeOfDayToMinutes(s.ends_at);
+      return sStart <= startMinutes && endMinutes <= sEnd;
+    });
+  if (!fitsSchedule) {
+    return { ok: false, error: "Horário fora da janela de funcionamento do calendário." };
+  }
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      starts_at: startsAtDate.toISOString(),
+      ends_at: endsAtDate.toISOString(),
+      updated_by: session.user.id,
+    })
+    .eq("id", parsed.data.id)
+    .eq("petshop_id", membership.petshopId);
+  if (error) return { ok: false, error: friendlyError(error.message) };
+
+  revalidatePath("/app/calendarios");
+  revalidatePath("/app/checklist");
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

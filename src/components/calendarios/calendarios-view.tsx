@@ -47,9 +47,11 @@ import {
   createClientInline,
   createPetInline,
   finalizeAppointment,
+  rescheduleAppointment,
   saveAppointment,
   updateAppointmentStatus,
 } from "@/app/app/calendarios/actions";
+import { petshopDateOf } from "@/lib/calendar/time";
 import {
   forwardLabel,
   isTerminal,
@@ -221,6 +223,12 @@ function buildMonthGrid(year: number, month0: number, todayIso: string): GridCel
   return cells;
 }
 
+function isApptOnSelectedToday(startIso: string, todayIsoLocal: string): boolean {
+  const d = petshopDateOf(new Date(startIso));
+  const iso = `${d.year}-${String(d.month0 + 1).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+  return iso === todayIsoLocal;
+}
+
 function todayInPetshopIso(): string {
   const now = new Date();
   const adjusted = new Date(now.getTime() + PETSHOP_TZ_OFFSET_MIN * 60_000);
@@ -269,6 +277,12 @@ export function CalendariosView({
     apptId: string;
     title: string;
     priceCents: number;
+  } | null>(null);
+  // Reagendar — move o agendamento pra outra data/hora preservando service/pet.
+  const [reschedule, setReschedule] = useState<{
+    apptId: string;
+    startIso: string;
+    title: string;
   } | null>(null);
 
   // Re-evaluate "today" once a minute so the highlight crosses midnight without a
@@ -884,7 +898,14 @@ export function CalendariosView({
                         <div className="mt-3 flex flex-wrap gap-1">
                           {(() => {
                             const advanceLabel = forwardLabel(a.status);
-                            return advanceLabel ? (
+                            if (!advanceLabel) return null;
+                            const apptIsToday = isApptOnSelectedToday(
+                              a.startIso,
+                              todayIso,
+                            );
+                            // Avanços operacionais só hoje. Fora do dia, mostra
+                            // botão Reagendar pra realocar antes de prosseguir.
+                            return apptIsToday ? (
                               <button
                                 onClick={() => handleAdvance(a.id, a.status, a)}
                                 disabled={pending}
@@ -893,8 +914,32 @@ export function CalendariosView({
                                 <ChevronAdvance className="size-3" />
                                 {advanceLabel}
                               </button>
-                            ) : null;
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                title="Só dá pra avançar no dia do atendimento. Use Reagendar pra mover pra hoje."
+                                className="inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[0.6875rem] font-medium text-zinc-400"
+                              >
+                                <ChevronAdvance className="size-3" />
+                                {advanceLabel}
+                              </button>
+                            );
                           })()}
+                          <button
+                            onClick={() =>
+                              setReschedule({
+                                apptId: a.id,
+                                startIso: a.startIso,
+                                title: `${a.service_name ?? "Atendimento"} — ${a.pet_name ?? a.tutor_name ?? "Pet"}`,
+                              })
+                            }
+                            disabled={pending}
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                          >
+                            <CalendarDays className="size-3" />
+                            Reagendar
+                          </button>
                           {prevStatus(a.status) ? (
                             <button
                               onClick={() => handleUndo(a.id, a.status)}
@@ -1153,6 +1198,15 @@ export function CalendariosView({
           router.refresh();
         }}
       />
+
+      <RescheduleDialog
+        target={reschedule}
+        onClose={() => setReschedule(null)}
+        onDone={() => {
+          setReschedule(null);
+          router.refresh();
+        }}
+      />
     </motion.div>
   );
 }
@@ -1313,5 +1367,119 @@ function TrackingShareButtons({
         </a>
       ) : null}
     </div>
+  );
+}
+
+function RescheduleDialog({
+  target,
+  onClose,
+  onDone,
+}: {
+  target: { apptId: string; startIso: string; title: string } | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (target) {
+      // Pré-preencher com a data atual do agendamento em TZ petshop
+      const wall = new Date(
+        new Date(target.startIso).getTime() + -180 * 60_000,
+      );
+      const y = wall.getUTCFullYear();
+      const m = String(wall.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(wall.getUTCDate()).padStart(2, "0");
+      const h = String(wall.getUTCHours()).padStart(2, "0");
+      const min = String(wall.getUTCMinutes()).padStart(2, "0");
+      setDate(`${y}-${m}-${d}`);
+      setTime(`${h}:${min}`);
+    }
+  }, [target]);
+
+  if (!target) {
+    return (
+      <Dialog open={false} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent />
+      </Dialog>
+    );
+  }
+
+  const submit = () => {
+    if (!date || !time) {
+      toast.error("Informe data e horário.");
+      return;
+    }
+    // Constrói starts_at em TZ petshop (-03:00) e ends_at = +30 min
+    const startsLocal = `${date}T${time}:00-03:00`;
+    const startsAt = new Date(startsLocal);
+    if (Number.isNaN(startsAt.getTime())) {
+      toast.error("Data/hora inválida.");
+      return;
+    }
+    const endsAt = new Date(startsAt.getTime() + 30 * 60_000);
+    startTransition(async () => {
+      const res = await rescheduleAppointment({
+        id: target.apptId,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+      });
+      if (res.ok) {
+        toast.success("Agendamento movido.");
+        onDone();
+      } else {
+        toast.error(res.error ?? "Erro ao reagendar.");
+      }
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Reagendar</DialogTitle>
+          <DialogDescription>{target.title}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="resch-date">Nova data</Label>
+              <Input
+                id="resch-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                disabled={pending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="resch-time">Novo horário</Label>
+              <Input
+                id="resch-time"
+                type="time"
+                step={1800}
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                disabled={pending}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-zinc-500">
+            Slot fixo de 30 minutos. O sistema confirma que cai num horário aberto
+            do calendário e que não conflita com outro agendamento.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={submit} disabled={pending}>
+            {pending ? "Movendo…" : "Mover atendimento"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

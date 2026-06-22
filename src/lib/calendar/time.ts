@@ -88,3 +88,18 @@ export function todayPetshopMidnightUtc(): Date {
   const { year, month0, day } = petshopDateOf(new Date());
   return utcInstantOfPetshopMidnight(year, month0, day);
 }
+
+/**
+ * Verifica se um instant UTC cai no dia de hoje em TZ petshop. Usado para
+ * bloquear avanços de status (check-in/iniciar/finalizar) em agendamentos
+ * que não são do dia corrente.
+ */
+export function isPetshopToday(instant: Date): boolean {
+  const today = petshopDateOf(todayPetshopMidnightUtc());
+  const target = petshopDateOf(instant);
+  return (
+    today.year === target.year &&
+    today.month0 === target.month0 &&
+    today.day === target.day
+  );
+}
