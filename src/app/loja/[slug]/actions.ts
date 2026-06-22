@@ -19,7 +19,13 @@ export type SlotsResult =
   | { ok: false; error: string };
 
 const slotsSchema = z.object({
-  slug: z.string().trim().min(1),
+  // Slug do subdomínio: lowercase alfanumérico + hífen. Restritivo pra impedir
+  // injection no filter DSL do PostgREST (vírgulas/operators).
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9-]{1,63}$/, "Slug inválido."),
   area: z.enum(["grooming", "veterinary"]),
   service_id: z.string().uuid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -155,7 +161,13 @@ export async function getPublicSlots(input: {
 }
 
 const bookingSchema = z.object({
-  slug: z.string().trim().min(1),
+  // Slug do subdomínio: lowercase alfanumérico + hífen. Restritivo pra impedir
+  // injection no filter DSL do PostgREST (vírgulas/operators).
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9-]{1,63}$/, "Slug inválido."),
   area: z.enum(["grooming", "veterinary"]),
   service_id: z.string().uuid("Serviço obrigatório"),
   tutor_name: z.string().trim().min(2, "Informe o nome completo").max(120),

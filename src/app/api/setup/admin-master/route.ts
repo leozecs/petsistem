@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkSetupGate } from "@/lib/auth/setup-gate";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const gate = checkSetupGate(req);
+  if (gate) return gate;
+
   const email = process.env.ADMIN_MASTER_EMAIL;
   const password = process.env.ADMIN_MASTER_PASSWORD;
   const supabase = createAdminClient();

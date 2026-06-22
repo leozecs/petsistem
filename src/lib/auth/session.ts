@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 export type GlobalRole = "admin_master" | "user";
@@ -48,6 +49,7 @@ type RawMembership = {
     plan_name: string;
     primary_color: string;
     logo_path: string | null;
+    created_at: string;
   } | null;
 };
 
@@ -72,14 +74,19 @@ export const getSession = cache(async function getSession(): Promise<SessionCont
   const { data: rawMemberships } = await supabase
     .from("memberships")
     .select(
-      "petshop_id, role, petshop:petshops!inner(id, name, slug, subdomain, status, plan_name, primary_color, logo_path)",
+      "petshop_id, role, petshop:petshops!inner(id, name, slug, subdomain, status, plan_name, primary_color, logo_path, created_at)",
     )
     .eq("user_id", user.id)
     .eq("status", "active")
     .returns<RawMembership[]>();
 
+  // Ordena determinístico: loja mais antiga primeiro. Sem isso, ordem varia por
+  // query (Postgres não garante ordem sem ORDER BY). Cookie pode sobrescrever.
   const memberships: Membership[] = (rawMemberships ?? [])
     .filter((m): m is RawMembership & { petshop: NonNullable<RawMembership["petshop"]> } => m.petshop !== null)
+    .sort((a, b) =>
+      (a.petshop!.created_at ?? "").localeCompare(b.petshop!.created_at ?? ""),
+    )
     .map((m) => ({
       petshopId: m.petshop_id,
       role: m.role,
@@ -95,6 +102,15 @@ export const getSession = cache(async function getSession(): Promise<SessionCont
       },
     }));
 
+  // Cookie `active_petshop_id` permite trocar de loja sem nova coluna na DB.
+  // Só vale se aponta pra uma membership ativa do usuário.
+  const cookieStore = await cookies();
+  const activeIdCookie = cookieStore.get("active_petshop_id")?.value;
+  const activeMembership =
+    (activeIdCookie && memberships.find((m) => m.petshopId === activeIdCookie)) ||
+    memberships[0] ||
+    null;
+
   return {
     user: {
       id: profile.id,
@@ -104,7 +120,7 @@ export const getSession = cache(async function getSession(): Promise<SessionCont
       avatarUrl: profile.avatar_url,
     },
     memberships,
-    activeMembership: memberships[0] ?? null,
+    activeMembership,
   };
 });
 

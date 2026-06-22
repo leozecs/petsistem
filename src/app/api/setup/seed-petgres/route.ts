@@ -1,9 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkSetupGate } from "@/lib/auth/setup-gate";
 
 const PETGRES_OWNER_EMAIL = "marina@petgres.com.br";
 const PETGRES_OWNER_NAME = "Marina Costa";
-const PETGRES_OWNER_PASSWORD = process.env.PETGRES_OWNER_PASSWORD ?? "Petgres@2026!";
+// Sem fallback hardcoded: se a env não estiver definida, o seed falha em
+// runtime em vez de usar uma senha conhecida publicamente.
+const PETGRES_OWNER_PASSWORD = process.env.PETGRES_OWNER_PASSWORD;
 
 const PETSHOP_SLUG = "petgres";
 const PETSHOP_NAME = "Petgres";
@@ -14,7 +17,17 @@ const PETSHOP_EMAIL = "contato@petgres.com.br";
 const PETSHOP_ADDRESS = "Rua das Palmeiras, 120 - Vinhedo/SP";
 const PETSHOP_PIX_KEY = "financeiro@petgres.com.br";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const gate = checkSetupGate(req);
+  if (gate) return gate;
+
+  if (!PETGRES_OWNER_PASSWORD) {
+    return NextResponse.json(
+      { ok: false, message: "PETGRES_OWNER_PASSWORD env não configurada." },
+      { status: 400 },
+    );
+  }
+
   const supabase = createAdminClient();
   if (!supabase) {
     return NextResponse.json(

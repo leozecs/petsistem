@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,18 +20,30 @@ async function getClientIp(): Promise<string | null> {
   return h.get("x-real-ip");
 }
 
+// Whitelists pra interpolação no filter DSL do PostgREST. Email deve ser um
+// endereço real (zod email já garante formato), IP deve casar IPv4/IPv6 básico.
+// Sem essa validação, vírgulas/operators no input transformam o or() em outro
+// query (ex: "email=victim,succeeded.is.true" bypassa o lockout).
+const EMAIL_RE = /^[^\s,()@]+@[^\s,()@]+\.[^\s,()@]+$/;
+const IP_RE = /^[a-fA-F0-9:.]{3,45}$/;
+
 async function isRateLimited(email: string, ip: string | null): Promise<{
   blocked: boolean;
   unlockAt: Date | null;
 }> {
+  // Defense-in-depth: se input não casa com o formato esperado, não conta como
+  // limite (e o tentar logar também vai falhar antes por dados inválidos).
+  if (!EMAIL_RE.test(email)) return { blocked: false, unlockAt: null };
+  const safeIp = ip && IP_RE.test(ip) ? ip : null;
+
   const admin = createAdminClient();
   if (!admin) return { blocked: false, unlockAt: null };
 
   const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MIN * 60_000);
 
   // Conta falhas no email OU no IP na janela.
-  const filter = ip
-    ? `email.eq.${email},ip.eq.${ip}`
+  const filter = safeIp
+    ? `email.eq.${email},ip.eq.${safeIp}`
     : `email.eq.${email}`;
   const { data, error } = await admin
     .from("login_attempts")
@@ -126,5 +138,34 @@ export async function signOut() {
   if (supabase) {
     await supabase.auth.signOut();
   }
+  // Limpa cookie de loja ativa pra próxima sessão escolher a default determinística.
+  const jar = await cookies();
+  jar.delete("active_petshop_id");
   redirect("/login");
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Seta o cookie `active_petshop_id`, só se o usuário tem membership ativa
+ * naquela loja. Cookie é HttpOnly + SameSite=Lax + Path=/. Sem expiry —
+ * persiste por sessão do browser.
+ */
+export async function setActivePetshop(petshopId: string): Promise<{ ok: boolean; error?: string }> {
+  if (!UUID_RE.test(petshopId)) return { ok: false, error: "ID inválido." };
+
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Sem sessão." };
+
+  const isMember = session.memberships.some((m) => m.petshopId === petshopId);
+  if (!isMember) return { ok: false, error: "Você não pertence a essa loja." };
+
+  const jar = await cookies();
+  jar.set("active_petshop_id", petshopId, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  });
+  return { ok: true };
 }
