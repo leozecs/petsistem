@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSession } from "@/lib/auth/session";
+import { isPetshopOperational } from "@/lib/petshop-status";
 
 // Janela e teto do rate limit: 3 falhas em 15 min por email OU IP travam o
 // login até a janela passar. Quem acertou a senha nesse intervalo zera o
@@ -127,7 +128,7 @@ export async function signIn(formData: FormData) {
     redirect("/login?error=no-tenant");
   }
 
-  if (session.activeMembership.petshop.status === "blocked") {
+  if (!isPetshopOperational(session.activeMembership.petshop.status)) {
     redirect("/login?error=tenant-blocked");
   }
 

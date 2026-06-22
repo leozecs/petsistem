@@ -3,6 +3,10 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  consumePublicRateLimit,
+  getPublicClientIdentifier,
+} from "@/lib/security/public-rate-limit";
 
 export type SignupResult =
   | { ok: true; email: string }
@@ -96,6 +100,33 @@ export async function signupTenant(formData: FormData): Promise<SignupResult> {
       if (key && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
     return { ok: false, error: "Dados inválidos.", fieldErrors };
+  }
+
+  const clientIdentifier = await getPublicClientIdentifier();
+  const [clientLimit, emailLimit] = await Promise.all([
+    consumePublicRateLimit({
+      action: "tenant_signup_client",
+      identifier: clientIdentifier,
+      limit: 5,
+      windowSeconds: 60 * 60,
+    }),
+    consumePublicRateLimit({
+      action: "tenant_signup_email",
+      identifier: parsed.data.email,
+      limit: 3,
+      windowSeconds: 60 * 60,
+    }),
+  ]);
+  if (!clientLimit.allowed || !emailLimit.allowed) {
+    const wasLimited =
+      (!clientLimit.allowed && clientLimit.reason === "limited") ||
+      (!emailLimit.allowed && emailLimit.reason === "limited");
+    return {
+      ok: false,
+      error: wasLimited
+        ? "Muitos cadastros. Aguarde uma hora e tente novamente."
+        : "Proteção antiabuso indisponível. Tente novamente em alguns minutos.",
+    };
   }
 
   const admin = createAdminClient();

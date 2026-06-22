@@ -5,6 +5,10 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseBrPhone } from "@/lib/phone";
 import { isPetshopAcceptingBookings } from "@/lib/petshop-status";
+import {
+  consumePublicRateLimit,
+  getPublicClientIdentifier,
+} from "@/lib/security/public-rate-limit";
 import { computeAvailability, effectiveSchedules } from "@/lib/calendar/availability";
 import {
   addMinutes,
@@ -46,6 +50,23 @@ export async function getPublicSlots(input: {
 }): Promise<SlotsResult> {
   const parsed = slotsSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Dados inválidos." };
+
+  const clientIdentifier = await getPublicClientIdentifier();
+  const slotsLimit = await consumePublicRateLimit({
+    action: "public_slots",
+    identifier: `${clientIdentifier}:${parsed.data.slug}`,
+    limit: 120,
+    windowSeconds: 5 * 60,
+  });
+  if (!slotsLimit.allowed) {
+    return {
+      ok: false,
+      error:
+        slotsLimit.reason === "limited"
+          ? "Muitas consultas de horário. Aguarde alguns minutos."
+          : "Proteção antiabuso indisponível. Tente novamente em alguns minutos.",
+    };
+  }
 
   const admin = createAdminClient();
   if (!admin) return { ok: false, error: "Servidor indisponível." };
@@ -234,6 +255,33 @@ export async function createPublicBooking(
       if (key && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
     return { ok: false, error: "Dados inválidos.", fieldErrors };
+  }
+
+  const clientIdentifier = await getPublicClientIdentifier();
+  const [clientLimit, phoneLimit] = await Promise.all([
+    consumePublicRateLimit({
+      action: "public_booking_client",
+      identifier: `${clientIdentifier}:${parsed.data.slug}`,
+      limit: 10,
+      windowSeconds: 10 * 60,
+    }),
+    consumePublicRateLimit({
+      action: "public_booking_phone",
+      identifier: `${digits(parsed.data.whatsapp)}:${parsed.data.slug}`,
+      limit: 3,
+      windowSeconds: 15 * 60,
+    }),
+  ]);
+  if (!clientLimit.allowed || !phoneLimit.allowed) {
+    const wasLimited =
+      (!clientLimit.allowed && clientLimit.reason === "limited") ||
+      (!phoneLimit.allowed && phoneLimit.reason === "limited");
+    return {
+      ok: false,
+      error: wasLimited
+        ? "Muitos agendamentos. Aguarde alguns minutos e tente novamente."
+        : "Proteção antiabuso indisponível. Tente novamente em alguns minutos.",
+    };
   }
 
   const admin = createAdminClient();

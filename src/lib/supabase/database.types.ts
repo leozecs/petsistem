@@ -2456,7 +2456,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      consume_public_rate_limit: {
+        Args: {
+          p_action: string
+          p_key_hash: string
+          p_limit: number
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       appointment_status:

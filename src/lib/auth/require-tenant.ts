@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession, type Membership, type SessionContext, type MemberRole } from "@/lib/auth/session";
+import { isPetshopOperational } from "@/lib/petshop-status";
 
 export type TenantContext = {
   session: SessionContext;
@@ -17,7 +18,7 @@ export async function requireTenant(): Promise<TenantContext> {
     }
     redirect("/login?error=no-tenant");
   }
-  if (session.activeMembership.petshop.status === "blocked") {
+  if (!isPetshopOperational(session.activeMembership.petshop.status)) {
     redirect("/login?error=tenant-blocked");
   }
   return { session, membership: session.activeMembership };

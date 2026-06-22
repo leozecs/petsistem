@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app/app-shell";
 import { getSession } from "@/lib/auth/session";
+import { isPetshopOperational } from "@/lib/petshop-status";
 
 export default async function TenantAppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -16,7 +17,7 @@ export default async function TenantAppLayout({ children }: { children: React.Re
     redirect("/login?error=no-tenant");
   }
 
-  if (session.activeMembership.petshop.status === "blocked") {
+  if (!isPetshopOperational(session.activeMembership.petshop.status)) {
     redirect("/login?error=tenant-blocked");
   }
 
