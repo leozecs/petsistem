@@ -36,7 +36,7 @@ export async function createRevenueItem(
   input: z.infer<typeof createRevenueSchema>,
 ): Promise<Result> {
   const { membership } = await requireTenant();
-  if (!hasRole(membership, ["owner", "attendant"])) {
+  if (!hasRole(membership, ["owner"])) {
     return { ok: false, error: "Sem permissão." };
   }
 
@@ -81,7 +81,7 @@ export async function createExpenseItem(
   input: z.infer<typeof createExpenseSchema>,
 ): Promise<Result> {
   const { membership } = await requireTenant();
-  if (!hasRole(membership, ["owner", "attendant"])) {
+  if (!hasRole(membership, ["owner"])) {
     return { ok: false, error: "Sem permissão." };
   }
 

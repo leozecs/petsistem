@@ -69,8 +69,8 @@ import {
   type ScheduleInput,
 } from "@/lib/calendar/availability";
 import {
-  PETSHOP_TZ_OFFSET_MIN,
   petshopWeekday,
+  utcInstantOfPetshopDateTime,
   utcInstantOfPetshopMidnight,
 } from "@/lib/calendar/time";
 import type { Database } from "@/lib/supabase/database.types";
@@ -109,28 +109,8 @@ type Props = {
   appointmentsByDay: Record<string, ApptSummary[]>;
   petshopName: string;
   slotMinutes: number;
+  timeZone: string;
 };
-
-const HHMM = new Intl.DateTimeFormat("pt-BR", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-  timeZone: "America/Sao_Paulo",
-});
-
-const LONG_DATE = new Intl.DateTimeFormat("pt-BR", {
-  weekday: "long",
-  day: "2-digit",
-  month: "long",
-  year: "numeric",
-  timeZone: "America/Sao_Paulo",
-});
-
-const MONTH_NAME = new Intl.DateTimeFormat("pt-BR", {
-  month: "long",
-  year: "numeric",
-  timeZone: "America/Sao_Paulo",
-});
 
 const WEEKDAY_LABELS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
@@ -184,8 +164,8 @@ const AREA_LABEL: Record<ServiceArea, string> = {
   veterinary: "Veterinária",
 };
 
-function formatHHmm(iso: string) {
-  return HHMM.format(new Date(iso));
+function formatHHmm(iso: string, timeZone = "America/Sao_Paulo") {
+  return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone }).format(new Date(iso));
 }
 
 function isoDateOnlyParts(year: number, month0: number, day: number): string {
@@ -200,10 +180,10 @@ type GridCell = {
   isToday: boolean;
 };
 
-function buildMonthGrid(year: number, month0: number, todayIso: string): GridCell[] {
+function buildMonthGrid(year: number, month0: number, todayIso: string, timeZone: string): GridCell[] {
   // Use petshop-TZ weekday so the grid aligns correctly regardless of browser TZ.
-  const firstOfMonthUtc = utcInstantOfPetshopMidnight(year, month0, 1);
-  const startDow = petshopWeekday(firstOfMonthUtc); // 0=Sun in petshop TZ
+  const firstOfMonthUtc = utcInstantOfPetshopMidnight(year, month0, 1, timeZone);
+  const startDow = petshopWeekday(firstOfMonthUtc, timeZone); // 0=Sun in petshop TZ
   const cells: GridCell[] = [];
   for (let i = 0; i < 42; i++) {
     const offsetDays = i - startDow;
@@ -224,20 +204,15 @@ function buildMonthGrid(year: number, month0: number, todayIso: string): GridCel
   return cells;
 }
 
-function isApptOnSelectedToday(startIso: string, todayIsoLocal: string): boolean {
-  const d = petshopDateOf(new Date(startIso));
+function isApptOnSelectedToday(startIso: string, todayIsoLocal: string, timeZone: string): boolean {
+  const d = petshopDateOf(new Date(startIso), timeZone);
   const iso = `${d.year}-${String(d.month0 + 1).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
   return iso === todayIsoLocal;
 }
 
-function todayInPetshopIso(): string {
-  const now = new Date();
-  const adjusted = new Date(now.getTime() + PETSHOP_TZ_OFFSET_MIN * 60_000);
-  return isoDateOnlyParts(
-    adjusted.getUTCFullYear(),
-    adjusted.getUTCMonth(),
-    adjusted.getUTCDate(),
-  );
+function todayInPetshopIso(timeZone: string): string {
+  const parts = petshopDateOf(new Date(), timeZone);
+  return isoDateOnlyParts(parts.year, parts.month0, parts.day);
 }
 
 export function CalendariosView({
@@ -255,6 +230,7 @@ export function CalendariosView({
   appointmentsByDay,
   petshopName,
   slotMinutes,
+  timeZone,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -289,15 +265,15 @@ export function CalendariosView({
 
   // Re-evaluate "today" once a minute so the highlight crosses midnight without a
   // hard reload — operators frequently leave the tab open overnight.
-  const [todayIso, setTodayIso] = useState(todayInPetshopIso);
+  const [todayIso, setTodayIso] = useState(() => todayInPetshopIso(timeZone));
   useEffect(() => {
-    const tick = () => setTodayIso(todayInPetshopIso());
+    const tick = () => setTodayIso(todayInPetshopIso(timeZone));
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
-  }, []);
+  }, [timeZone]);
   const gridCells = useMemo(
-    () => buildMonthGrid(visibleYear, visibleMonth0, todayIso),
-    [visibleYear, visibleMonth0, todayIso],
+    () => buildMonthGrid(visibleYear, visibleMonth0, todayIso, timeZone),
+    [visibleYear, visibleMonth0, todayIso, timeZone],
   );
 
   const dayAppointments = useMemo(
@@ -306,17 +282,16 @@ export function CalendariosView({
   );
 
   const visibleMonthLabel = useMemo(() => {
-    const formatted = MONTH_NAME.format(new Date(visibleYear, visibleMonth0, 15));
+    const formatted = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone }).format(new Date(Date.UTC(visibleYear, visibleMonth0, 15, 12)));
     return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-  }, [visibleYear, visibleMonth0]);
+  }, [visibleYear, visibleMonth0, timeZone]);
 
-  // Use the petshop-TZ midnight UTC instant so LONG_DATE (timeZone America/Sao_Paulo)
-  // always formats the correct calendar day regardless of the browser's local TZ.
+  // Usa meia-noite UTC equivalente ao fuso da loja, independente do navegador.
   const selectedDate = useMemo(() => {
     const [y, m, d] = activeDateIso.split("-").map(Number);
     if (!y || !m || !d) return new Date();
-    return utcInstantOfPetshopMidnight(y, m - 1, d);
-  }, [activeDateIso]);
+    return utcInstantOfPetshopMidnight(y, m - 1, d, timeZone);
+  }, [activeDateIso, timeZone]);
 
   const servicesForArea = useMemo(
     () => services.filter((s) => s.area === activeArea),
@@ -357,7 +332,7 @@ export function CalendariosView({
     if (!selectedService) return [];
     const [y, m, d] = activeDateIso.split("-").map(Number);
     if (!y || !m || !d) return [];
-    const petshopMidnight = utcInstantOfPetshopMidnight(y, m - 1, d);
+    const petshopMidnight = utcInstantOfPetshopMidnight(y, m - 1, d, timeZone);
     const nextDay = isoDateOnlyParts(y, m - 1, d + 1);
     const prevDay = isoDateOnlyParts(y, m - 1, d - 1);
     const candidates = [
@@ -402,7 +377,7 @@ export function CalendariosView({
       if (contiguous) bookable.push(window[0]!);
     }
     return bookable;
-  }, [selectedService, activeDateIso, schedules, appointmentsByDay]);
+  }, [selectedService, activeDateIso, schedules, appointmentsByDay, slotMinutes, timeZone]);
 
   function navigateMonth(delta: number) {
     const next = new Date(visibleYear, visibleMonth0 + delta, 1);
@@ -784,7 +759,7 @@ export function CalendariosView({
                         }
                       />
                       <span className="truncate">
-                        {formatHHmm(firstAppt.startIso)} ·{" "}
+                        {formatHHmm(firstAppt.startIso, timeZone)} ·{" "}
                         {firstAppt.service_name ?? firstAppt.pet_name ?? "—"}
                       </span>
                     </div>
@@ -800,7 +775,7 @@ export function CalendariosView({
             <div>
               <p className="text-xs uppercase tracking-wide text-zinc-500">Dia</p>
               <p className="mt-1 text-base font-semibold text-zinc-950">
-                {LONG_DATE.format(selectedDate)}
+                {new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric", timeZone }).format(selectedDate)}
               </p>
             </div>
 
@@ -823,7 +798,7 @@ export function CalendariosView({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-sm font-medium text-zinc-700">
-                              {formatHHmm(a.startIso)}
+                              {formatHHmm(a.startIso, timeZone)}
                             </span>
                             <span
                               className={
@@ -904,6 +879,7 @@ export function CalendariosView({
                             const apptIsToday = isApptOnSelectedToday(
                               a.startIso,
                               todayIso,
+                              timeZone,
                             );
                             // Avanços operacionais só hoje. Fora do dia, mostra
                             // botão Reagendar pra realocar antes de prosseguir.
@@ -1008,7 +984,7 @@ export function CalendariosView({
           <DialogHeader>
             <DialogTitle>Novo agendamento</DialogTitle>
             <DialogDescription>
-              {LONG_DATE.format(selectedDate)} · {AREA_LABEL[activeArea]}
+              {new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric", timeZone }).format(selectedDate)} · {AREA_LABEL[activeArea]}
             </DialogDescription>
           </DialogHeader>
 
@@ -1061,7 +1037,7 @@ export function CalendariosView({
                   const anchorEnd = new Date(slot.start.getTime() + 30 * 60_000);
                   return {
                     id: iso,
-                    label: `${formatHHmm(iso)} às ${formatHHmm(anchorEnd.toISOString())}`,
+                    label: `${formatHHmm(iso, timeZone)} às ${formatHHmm(anchorEnd.toISOString(), timeZone)}`,
                   };
                 })}
                 value={form.watch("starts_at") ?? ""}
@@ -1203,6 +1179,7 @@ export function CalendariosView({
 
       <RescheduleDialog
         target={reschedule}
+        timeZone={timeZone}
         onClose={() => setReschedule(null)}
         onDone={() => {
           setReschedule(null);
@@ -1374,10 +1351,12 @@ function TrackingShareButtons({
 
 function RescheduleDialog({
   target,
+  timeZone,
   onClose,
   onDone,
 }: {
   target: { apptId: string; startIso: string; title: string } | null;
+  timeZone: string;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -1388,18 +1367,16 @@ function RescheduleDialog({
   useEffect(() => {
     if (target) {
       // Pré-preencher com a data atual do agendamento em TZ petshop
-      const wall = new Date(
-        new Date(target.startIso).getTime() + -180 * 60_000,
-      );
-      const y = wall.getUTCFullYear();
-      const m = String(wall.getUTCMonth() + 1).padStart(2, "0");
-      const d = String(wall.getUTCDate()).padStart(2, "0");
-      const h = String(wall.getUTCHours()).padStart(2, "0");
-      const min = String(wall.getUTCMinutes()).padStart(2, "0");
+      const instant = new Date(target.startIso);
+      const parts = petshopDateOf(instant, timeZone);
+      const y = parts.year;
+      const m = String(parts.month0 + 1).padStart(2, "0");
+      const d = String(parts.day).padStart(2, "0");
+      const [h, min] = formatHHmm(target.startIso, timeZone).split(":");
       setDate(`${y}-${m}-${d}`);
       setTime(`${h}:${min}`);
     }
-  }, [target]);
+  }, [target, timeZone]);
 
   if (!target) {
     return (
@@ -1415,8 +1392,9 @@ function RescheduleDialog({
       return;
     }
     // Constrói starts_at em TZ petshop (-03:00) e ends_at = +30 min
-    const startsLocal = `${date}T${time}:00-03:00`;
-    const startsAt = new Date(startsLocal);
+    const [year, month, day] = date.split("-").map(Number);
+    const [hour, minute] = time.split(":").map(Number);
+    const startsAt = utcInstantOfPetshopDateTime(year!, month! - 1, day!, hour!, minute!, timeZone);
     if (Number.isNaN(startsAt.getTime())) {
       toast.error("Data/hora inválida.");
       return;

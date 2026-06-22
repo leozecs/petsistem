@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isReservedSubdomain } from "@/lib/subdomains";
 
 /**
  * Host-based router:
@@ -22,19 +23,6 @@ const ROOT_DOMAINS = (
   .map((d) => d.trim().toLowerCase())
   .concat(["petsistem.vercel.app", "localhost"]);
 
-const RESERVED = new Set([
-  "www",
-  "app",
-  "admin",
-  "api",
-  "auth",
-  "static",
-  "assets",
-  "cdn",
-  "mail",
-  "blog",
-]);
-
 // Paths that should always render at the apex even when the user types them
 // directly — never get rewritten to /marketing.
 const APEX_APP_PATHS = new Set([
@@ -57,7 +45,7 @@ function classifyHost(host: string): HostKind {
       const sub = bare.slice(0, -1 - root.length);
       if (sub.includes(".")) return { kind: "unknown" };
       if (sub === "app") return { kind: "app" };
-      if (RESERVED.has(sub)) return { kind: "unknown" };
+      if (isReservedSubdomain(sub)) return { kind: "unknown" };
       return { kind: "tenant", slug: sub };
     }
   }

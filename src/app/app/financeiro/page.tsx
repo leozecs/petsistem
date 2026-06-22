@@ -12,38 +12,39 @@ function isoDay(year: number, month0: number, day: number): string {
   return `${year}-${String(month0 + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function startOfWeek(year: number, month0: number, day: number): { year: number; month0: number; day: number } {
+function startOfWeek(year: number, month0: number, day: number, timeZone: string): { year: number; month0: number; day: number } {
   // Semana operacional petshop: segunda como início (6x1, segunda = depois do dia off).
-  const midnight = utcInstantOfPetshopMidnight(year, month0, day);
+  const midnight = utcInstantOfPetshopMidnight(year, month0, day, timeZone);
   const wd = ((midnight.getUTCDay() + 6) % 7); // 0=Mon ... 6=Sun
   const monday = new Date(midnight.getTime() - wd * 86_400_000);
-  return petshopDateOf(monday);
+  return petshopDateOf(monday, timeZone);
 }
 
 export default async function FinanceiroPage() {
   const { membership } = await requireTenant();
-  if (!hasRole(membership, ["owner", "attendant"])) {
+  if (!hasRole(membership, ["owner"])) {
     redirect("/app");
   }
 
   const supabase = await createClient();
   if (!supabase) redirect("/login?error=supabase-not-configured");
 
-  const today = petshopDateOf(todayPetshopMidnightUtc());
+  const timeZone = membership.petshop.timezone;
+  const today = petshopDateOf(todayPetshopMidnightUtc(timeZone), timeZone);
   const todayIso = isoDay(today.year, today.month0, today.day);
   const monthStart = isoDay(today.year, today.month0, 1);
   const monthEndDate = new Date(
-    utcInstantOfPetshopMidnight(today.year, today.month0 + 1, 1).getTime() - 86_400_000,
+    utcInstantOfPetshopMidnight(today.year, today.month0 + 1, 1, timeZone).getTime() - 86_400_000,
   );
-  const monthEndParts = petshopDateOf(monthEndDate);
+  const monthEndParts = petshopDateOf(monthEndDate, timeZone);
   const monthEnd = isoDay(monthEndParts.year, monthEndParts.month0, monthEndParts.day);
-  const weekStart = startOfWeek(today.year, today.month0, today.day);
+  const weekStart = startOfWeek(today.year, today.month0, today.day, timeZone);
   const weekStartIso = isoDay(weekStart.year, weekStart.month0, weekStart.day);
 
   // Janela de busca: do início do mês (pega tudo do mês pra KPIs) até hoje.
   // Lista exibe últimos 30 dias do período devolvido.
-  const monthStartTs = utcInstantOfPetshopMidnight(today.year, today.month0, 1).toISOString();
-  const nextMonthStartTs = utcInstantOfPetshopMidnight(today.year, today.month0 + 1, 1).toISOString();
+  const monthStartTs = utcInstantOfPetshopMidnight(today.year, today.month0, 1, timeZone).toISOString();
+  const nextMonthStartTs = utcInstantOfPetshopMidnight(today.year, today.month0 + 1, 1, timeZone).toISOString();
 
   const [chargesRes, revenuesRes, expensesRes, categoriesRes, pendingChargesRes] = await Promise.all([
     // Recebidos no mês (charges com paid_at)

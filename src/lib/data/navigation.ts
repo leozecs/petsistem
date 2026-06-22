@@ -55,7 +55,6 @@ export const attendantNav: NavItem[] = [
   { href: "/app/calendarios", label: "Agenda Banho e Tosa", icon: CalendarCheck },
   { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
   { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
-  { href: "/app/financeiro", label: "Financeiro", icon: Receipt },
 ];
 
 export const veterinarianNav: NavItem[] = [

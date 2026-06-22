@@ -133,10 +133,11 @@ export async function saveAppointment(
   // pra furar a fila entre slots.
   const { data: petshopRow } = await supabase
     .from("petshops")
-    .select("slot_minutes")
+    .select("slot_minutes, timezone")
     .eq("id", membership.petshopId)
     .maybeSingle();
   const SLOT_MINUTES = petshopRow?.slot_minutes ?? 30;
+  const timeZone = petshopRow?.timezone ?? membership.petshop.timezone;
   const startsAtDate = new Date(parsed.data.starts_at);
   const endsAtDate = new Date(parsed.data.ends_at);
   const actualDurationMin = Math.round((endsAtDate.getTime() - startsAtDate.getTime()) / 60_000);
@@ -150,14 +151,15 @@ export async function saveAppointment(
 
   // Verify starts_at falls inside an active schedule window for this calendar's
   // weekday — otherwise out-of-hours ghost bookings can be created via direct POST.
-  const startsAtParts = petshopDateOf(startsAtDate);
+  const startsAtParts = petshopDateOf(startsAtDate, timeZone);
   const startsAtPetshopMidnight = utcInstantOfPetshopMidnight(
     startsAtParts.year,
     startsAtParts.month0,
     startsAtParts.day,
+    timeZone,
   );
-  const weekday = petshopWeekday(startsAtPetshopMidnight);
-  const startMinutes = petshopMinutesIntoDay(startsAtDate);
+  const weekday = petshopWeekday(startsAtPetshopMidnight, timeZone);
+  const startMinutes = petshopMinutesIntoDay(startsAtDate, timeZone);
   const endMinutes = startMinutes + targetService.duration_minutes;
 
   // Pull ALL schedules for this calendar (any weekday) so we know whether the
@@ -374,7 +376,7 @@ export async function updateAppointmentStatus(
   const FORWARD_OPERATIONAL = new Set(["checked_in", "in_progress", "finished"]);
   if (
     FORWARD_OPERATIONAL.has(parsed.data.status) &&
-    !isPetshopToday(new Date(appt.starts_at))
+    !isPetshopToday(new Date(appt.starts_at), membership.petshop.timezone)
   ) {
     return {
       ok: false,
@@ -441,7 +443,7 @@ export async function finalizeAppointment(
   if (!canTransition(appt.status, "finished")) {
     return { ok: false, error: "Só dá pra finalizar quando o atendimento está em andamento." };
   }
-  if (!isPetshopToday(new Date(appt.starts_at))) {
+  if (!isPetshopToday(new Date(appt.starts_at), membership.petshop.timezone)) {
     return {
       ok: false,
       error: "Esse atendimento não é hoje. Reagende pra hoje antes de finalizar.",
@@ -566,14 +568,16 @@ export async function rescheduleAppointment(
   const svcDuration = svc?.duration_minutes ?? SLOT_MINUTES;
 
   // Valida que cai num horário de funcionamento ativo do calendário
-  const startsAtParts = petshopDateOf(startsAtDate);
+  const timeZone = membership.petshop.timezone;
+  const startsAtParts = petshopDateOf(startsAtDate, timeZone);
   const startsAtPetshopMidnight = utcInstantOfPetshopMidnight(
     startsAtParts.year,
     startsAtParts.month0,
     startsAtParts.day,
+    timeZone,
   );
-  const weekday = petshopWeekday(startsAtPetshopMidnight);
-  const startMinutes = petshopMinutesIntoDay(startsAtDate);
+  const weekday = petshopWeekday(startsAtPetshopMidnight, timeZone);
+  const startMinutes = petshopMinutesIntoDay(startsAtDate, timeZone);
   const endMinutes = startMinutes + svcDuration;
 
   const { data: allSchedules, error: schedErr } = await supabase

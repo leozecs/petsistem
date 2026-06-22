@@ -83,30 +83,13 @@ export async function markPaymentPaid(
   const admin = createAdminClient();
   if (!admin) return { ok: false, error: "Service role indisponível." };
 
-  const now = new Date().toISOString();
-
-  // Mark the payment itself
-  const { data: payment, error: payErr } = await admin
-    .from("payments")
-    .update({
-      status: "paid",
-      paid_at: now,
-      confirmed_by: me.id,
-      updated_by: me.id,
-    })
-    .eq("id", parsed.data.paymentId)
-    .select("subscription_id")
-    .single();
+  const { error: payErr } = await admin.rpc("confirm_payment", {
+    p_payment_id: parsed.data.paymentId,
+    p_actor_id: me.id,
+  });
   if (payErr) return { ok: false, error: payErr.message };
 
   // Cascading: subscription também vai pra "paid"
-  if (payment?.subscription_id) {
-    await admin
-      .from("subscriptions")
-      .update({ status: "paid", updated_by: me.id })
-      .eq("id", payment.subscription_id);
-  }
-
   revalidatePath("/admin-master/cobrancas");
   revalidatePath("/admin-master/assinaturas");
   return { ok: true };

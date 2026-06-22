@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { contrastWithWhite, MIN_AA_CONTRAST } from "@/lib/color";
+import { isPetshopTimeZone } from "@/lib/timezones";
 
 export type ActionState = {
   ok: boolean;
@@ -124,6 +125,7 @@ const operationsSchema = z.object({
   slot_minutes: z.coerce.number().int().refine((n) => [15, 20, 30, 45, 60].includes(n), {
     message: "Intervalo deve ser 15, 20, 30, 45 ou 60 minutos.",
   }),
+  timezone: z.string().refine(isPetshopTimeZone, "Fuso horário inválido."),
 });
 
 /**
@@ -141,6 +143,7 @@ export async function updatePetshopOperations(
 
   const parsed = operationsSchema.safeParse({
     slot_minutes: formData.get("slot_minutes"),
+    timezone: String(formData.get("timezone") ?? ""),
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
@@ -153,6 +156,7 @@ export async function updatePetshopOperations(
     .from("petshops")
     .update({
       slot_minutes: parsed.data.slot_minutes,
+      timezone: parsed.data.timezone,
       updated_by: session.user.id,
     })
     .eq("id", membership.petshopId);

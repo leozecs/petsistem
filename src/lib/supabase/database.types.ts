@@ -1582,6 +1582,7 @@ export type Database = {
       petshops: {
         Row: {
           address: string | null
+          billing_blocked_at: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -1601,12 +1602,14 @@ export type Database = {
           slug: string
           status: Database["public"]["Enums"]["petshop_status"]
           subdomain: string
+          timezone: string
           updated_at: string
           updated_by: string | null
           whatsapp: string | null
         }
         Insert: {
           address?: string | null
+          billing_blocked_at?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1626,12 +1629,14 @@ export type Database = {
           slug: string
           status?: Database["public"]["Enums"]["petshop_status"]
           subdomain: string
+          timezone?: string
           updated_at?: string
           updated_by?: string | null
           whatsapp?: string | null
         }
         Update: {
           address?: string | null
+          billing_blocked_at?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1651,6 +1656,7 @@ export type Database = {
           slug?: string
           status?: Database["public"]["Enums"]["petshop_status"]
           subdomain?: string
+          timezone?: string
           updated_at?: string
           updated_by?: string | null
           whatsapp?: string | null
@@ -2456,6 +2462,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      confirm_payment: {
+        Args: { p_actor_id: string; p_payment_id: string }
+        Returns: Json
+      }
+      confirm_subscription_payment: {
+        Args: { p_actor_id: string; p_subscription_id: string }
+        Returns: Json
+      }
+      reconcile_billing_status: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       consume_public_rate_limit: {
         Args: {
           p_action: string

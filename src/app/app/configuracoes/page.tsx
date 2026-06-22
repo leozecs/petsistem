@@ -18,7 +18,7 @@ export default async function ConfiguracoesPage() {
   const { data: petshop } = await supabase
     .from("petshops")
     .select(
-      "id, name, legal_name, address, phone, whatsapp, email, primary_color, subdomain, slug, logo_path, slot_minutes",
+      "id, name, legal_name, address, phone, whatsapp, email, primary_color, subdomain, slug, logo_path, slot_minutes, timezone",
     )
     .eq("id", membership.petshopId)
     .maybeSingle();
@@ -49,6 +49,7 @@ export default async function ConfiguracoesPage() {
         subdomain: petshop.subdomain,
         logoUrl,
         slotMinutes: petshop.slot_minutes ?? 30,
+        timezone: petshop.timezone ?? "America/Sao_Paulo",
       }}
       rootDomain={ROOT_DOMAIN}
     />

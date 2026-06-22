@@ -132,10 +132,10 @@ export async function markSubscriptionPaid(
   const admin = createAdminClient();
   if (!admin) return { ok: false, error: "Service role indisponível." };
 
-  const { error } = await admin
-    .from("subscriptions")
-    .update({ status: "paid", updated_by: me.id })
-    .eq("id", subscriptionId);
+  const { error } = await admin.rpc("confirm_subscription_payment", {
+    p_subscription_id: subscriptionId,
+    p_actor_id: me.id,
+  });
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin-master/assinaturas");

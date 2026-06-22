@@ -17,12 +17,12 @@ type CalendarRow = Database["public"]["Tables"]["calendars"]["Row"];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function parseDateParam(input: string | undefined): Date {
+function parseDateParam(input: string | undefined, timeZone: string): Date {
   if (input && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
     const [y, m, d] = input.split("-").map(Number);
-    if (y && m && d) return utcInstantOfPetshopMidnight(y, m - 1, d);
+    if (y && m && d) return utcInstantOfPetshopMidnight(y, m - 1, d, timeZone);
   }
-  return todayPetshopMidnightUtc();
+  return todayPetshopMidnightUtc(timeZone);
 }
 
 function allowedAreas(role: string): ServiceArea[] {
@@ -55,18 +55,19 @@ export default async function CalendariosPage({
 
   const { data: petshopRow } = await supabase
     .from("petshops")
-    .select("slot_minutes")
+    .select("slot_minutes, timezone")
     .eq("id", membership.petshopId)
     .maybeSingle();
   const slotMinutes = petshopRow?.slot_minutes ?? 30;
+  const timeZone = petshopRow?.timezone ?? membership.petshop.timezone;
 
   // Pre-calculate the date range from URL params (pure, no async) so we can
   // start the appointments fetch in the same Promise.all as the calendar list.
-  const selectedDayUtc = parseDateParam(params.date);
-  const selectedParts = petshopDateOf(selectedDayUtc);
+  const selectedDayUtc = parseDateParam(params.date, timeZone);
+  const selectedParts = petshopDateOf(selectedDayUtc, timeZone);
   const activeDateIso = isoDateOnly(selectedParts.year, selectedParts.month0, selectedParts.day);
-  const monthStart = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0, 1);
-  const monthEnd = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0 + 1, 1);
+  const monthStart = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0, 1, timeZone);
+  const monthEnd = utcInstantOfPetshopMidnight(selectedParts.year, selectedParts.month0 + 1, 1, timeZone);
   const fetchStart = addMinutes(monthStart, -7 * 24 * 60);
   const fetchEnd = addMinutes(monthEnd, 14 * 24 * 60);
 
@@ -224,7 +225,7 @@ export default async function CalendariosPage({
   > = {};
   for (const a of apptRows) {
     const startUtc = new Date(a.starts_at);
-    const parts = petshopDateOf(startUtc);
+    const parts = petshopDateOf(startUtc, timeZone);
     const key = isoDateOnly(parts.year, parts.month0, parts.day);
     (appointmentsByDay[key] ??= []).push({
       id: a.id,
@@ -258,6 +259,7 @@ export default async function CalendariosPage({
       appointmentsByDay={appointmentsByDay}
       petshopName={membership.petshop.name}
       slotMinutes={slotMinutes}
+      timeZone={timeZone}
     />
   );
 }

@@ -33,9 +33,10 @@ export default async function ChecklistPage() {
   const areas = allowedAreas(membership.role);
 
   // Janela hoje em TZ petshop
-  const today = petshopDateOf(todayPetshopMidnightUtc());
-  const startTs = utcInstantOfPetshopMidnight(today.year, today.month0, today.day).toISOString();
-  const endTs = utcInstantOfPetshopMidnight(today.year, today.month0, today.day + 1).toISOString();
+  const timeZone = membership.petshop.timezone;
+  const today = petshopDateOf(todayPetshopMidnightUtc(timeZone), timeZone);
+  const startTs = utcInstantOfPetshopMidnight(today.year, today.month0, today.day, timeZone).toISOString();
+  const endTs = utcInstantOfPetshopMidnight(today.year, today.month0, today.day + 1, timeZone).toISOString();
 
   // 1. Appointments hoje na área do role com status relevante
   const { data: apptsRaw } = await supabase

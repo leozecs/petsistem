@@ -1,0 +1,1 @@
+alter table public.petshops validate constraint petshops_subdomain_not_reserved;

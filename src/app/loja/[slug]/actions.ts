@@ -12,7 +12,9 @@ import {
 import { computeAvailability, effectiveSchedules } from "@/lib/calendar/availability";
 import {
   addMinutes,
+  formatHHmmInPetshopTz,
   petshopDateOf,
+  utcInstantOfPetshopDateTime,
   utcInstantOfPetshopMidnight,
 } from "@/lib/calendar/time";
 
@@ -73,7 +75,7 @@ export async function getPublicSlots(input: {
 
   const { data: petshop } = await admin
     .from("petshops")
-    .select("id, status")
+    .select("id, status, timezone")
     .or(`slug.eq.${parsed.data.slug},subdomain.eq.${parsed.data.slug}`)
     .is("deleted_at", null)
     .maybeSingle();
@@ -103,7 +105,8 @@ export async function getPublicSlots(input: {
   if (!calendar) return { ok: false, error: "Sem calendário configurado." };
 
   const [y, m, d] = parsed.data.date.split("-").map(Number);
-  const petshopMidnight = utcInstantOfPetshopMidnight(y!, (m ?? 1) - 1, d ?? 1);
+  const timeZone = petshop.timezone ?? "America/Sao_Paulo";
+  const petshopMidnight = utcInstantOfPetshopMidnight(y!, (m ?? 1) - 1, d ?? 1, timeZone);
   const dayEnd = addMinutes(petshopMidnight, 24 * 60);
 
   const [{ data: schedRows }, { data: apptRows }] = await Promise.all([
@@ -171,14 +174,12 @@ export async function getPublicSlots(input: {
     if (contiguous) bookable.push(window[0]!.start);
   }
 
-  // Devolve como "YYYY-MM-DDTHH:MM" interpretado em petshop-TZ (BRT). O front
+  // Devolve como "YYYY-MM-DDTHH:MM" no fuso configurado pela loja. O front
   // só exibe; o back reinterpreta o mesmo string na criação.
   const out = bookable.map((d) => {
-    const parts = petshopDateOf(d);
-    // Re-extract HH:MM em BRT a partir do instante UTC.
-    const wall = new Date(d.getTime() - 180 * 60_000); // BRT = UTC-3
-    const hh = String(wall.getUTCHours()).padStart(2, "0");
-    const mm = String(wall.getUTCMinutes()).padStart(2, "0");
+    const parts = petshopDateOf(d, timeZone);
+    // Extrai HH:MM local a partir do instante UTC.
+    const [hh, mm] = formatHHmmInPetshopTz(d, timeZone).split(":");
     const date = `${parts.year}-${String(parts.month0 + 1).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
     return `${date}T${hh}:${mm}`;
   });
@@ -231,7 +232,7 @@ function digits(s: string): string {
  *  - service pertence à loja + área
  *  - calendário ativo na área
  *  - starts_at no formato local "YYYY-MM-DDTHH:MM"; transformamos pra ISO UTC
- *    interpretando o horário como petshop-TZ (BRT, -180min)
+ *    interpretando o horário no fuso IANA configurado pela loja
  */
 export async function createPublicBooking(
   formData: FormData,
@@ -290,7 +291,7 @@ export async function createPublicBooking(
   // 1) Resolver loja por slug ou subdomain
   const { data: petshop } = await admin
     .from("petshops")
-    .select("id, status")
+    .select("id, status, timezone")
     .or(`slug.eq.${parsed.data.slug},subdomain.eq.${parsed.data.slug}`)
     .is("deleted_at", null)
     .maybeSingle();
@@ -386,12 +387,14 @@ export async function createPublicBooking(
     petId = createdPet.id;
   }
 
-  // 6) Converter starts_at "YYYY-MM-DDTHH:MM" (interpretado como BRT) → UTC ISO
-  // BRT = UTC-3 fixo, então UTC = local + 3h.
+  // 6) Converter starts_at local usando o fuso configurado → UTC ISO.
   const [datePart, timePart] = parsed.data.starts_at.split("T");
   const [y, m, d] = datePart!.split("-").map(Number);
   const [hh, mm] = timePart!.split(":").map(Number);
-  const startUtc = new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1, (hh ?? 0) + 3, mm ?? 0));
+  const startUtc = utcInstantOfPetshopDateTime(
+    y!, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0,
+    petshop.timezone ?? "America/Sao_Paulo",
+  );
   const endUtc = new Date(startUtc.getTime() + SLOT_MINUTES * 60_000);
 
   // 7) Criar appointment (status pending pra revisão do petshop)

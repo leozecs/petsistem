@@ -23,6 +23,7 @@ export type MembershipPetshop = {
   planName: string;
   primaryColor: string;
   logoPath: string | null;
+  timezone: string;
 };
 
 export type Membership = {
@@ -49,6 +50,7 @@ type RawMembership = {
     plan_name: string;
     primary_color: string;
     logo_path: string | null;
+    timezone: string;
     created_at: string;
   } | null;
 };
@@ -74,7 +76,7 @@ export const getSession = cache(async function getSession(): Promise<SessionCont
   const { data: rawMemberships } = await supabase
     .from("memberships")
     .select(
-      "petshop_id, role, petshop:petshops!inner(id, name, slug, subdomain, status, plan_name, primary_color, logo_path, created_at)",
+      "petshop_id, role, petshop:petshops!inner(id, name, slug, subdomain, status, plan_name, primary_color, logo_path, timezone, created_at)",
     )
     .eq("user_id", user.id)
     .eq("status", "active")
@@ -101,6 +103,7 @@ export const getSession = cache(async function getSession(): Promise<SessionCont
         planName: m.petshop.plan_name,
         primaryColor: m.petshop.primary_color,
         logoPath: m.petshop.logo_path,
+        timezone: m.petshop.timezone,
       },
     }));
 

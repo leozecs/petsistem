@@ -36,6 +36,7 @@ import {
   uploadPetshopLogo,
 } from "@/app/app/configuracoes/actions";
 import { contrastWithWhite, MIN_AA_CONTRAST } from "@/lib/color";
+import { PETSHOP_TIME_ZONES } from "@/lib/timezones";
 
 type Props = {
   petshop: {
@@ -50,6 +51,7 @@ type Props = {
     subdomain: string;
     logoUrl: string | null;
     slotMinutes: number;
+    timezone: string;
   };
   rootDomain: string;
 };
@@ -75,15 +77,18 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
 
   // Operacional
   const [slotMinutes, setSlotMinutes] = useState<number>(petshop.slotMinutes);
+  const [timezone, setTimezone] = useState(petshop.timezone);
 
-  function submitOperations(value: number) {
+  function submitOperations(value: number, nextTimezone = timezone) {
     const fd = new FormData();
     fd.set("slot_minutes", String(value));
+    fd.set("timezone", nextTimezone);
     startTransition(async () => {
       const result = await updatePetshopOperations(fd);
       if (result.ok) {
         toast.success("Intervalo de agendamento atualizado.");
         setSlotMinutes(value);
+        setTimezone(nextTimezone);
         router.refresh();
       } else {
         toast.error(result.error ?? "Erro ao salvar");
@@ -376,6 +381,21 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
               <p className="mt-3 text-xs text-zinc-500">
                 Atual: <span className="font-mono">{slotMinutes} min</span>. Mudança vale pros próximos agendamentos.
               </p>
+              <div className="mt-6 max-w-md space-y-2 border-t border-zinc-100 pt-5">
+                <Label htmlFor="timezone">Fuso horário da loja</Label>
+                <select
+                  id="timezone"
+                  value={timezone}
+                  disabled={pending}
+                  onChange={(event) => submitOperations(slotMinutes, event.target.value)}
+                  className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-zinc-400 disabled:opacity-60"
+                >
+                  {PETSHOP_TIME_ZONES.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-500">Usado nos horários do calendário e do agendamento público.</p>
+              </div>
             </CardContent>
           </Card>
 

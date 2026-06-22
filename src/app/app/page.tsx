@@ -59,10 +59,11 @@ export default async function AppDashboardPage() {
     );
   }
 
-  const todayMidnight = todayPetshopMidnightUtc();
+  const timeZone = membership.petshop.timezone;
+  const todayMidnight = todayPetshopMidnightUtc(timeZone);
   const tomorrowMidnight = addMinutes(todayMidnight, 24 * 60);
   const dayAfterTomorrowMidnight = addMinutes(tomorrowMidnight, 24 * 60);
-  const todayParts = petshopDateOf(todayMidnight);
+  const todayParts = petshopDateOf(todayMidnight, timeZone);
   const todayIso = `${todayParts.year}-${String(todayParts.month0 + 1).padStart(2, "0")}-${String(todayParts.day).padStart(2, "0")}`;
 
   // Solicitações do site público entram com status `pending` e podem ser pra

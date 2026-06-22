@@ -1,105 +1,34 @@
-// Petshop fixed timezone. Brazil dropped DST in 2019, so a static -180 offset is
-// safe for all current tenants. When per-tenant TZ is needed, replace this with
-// a per-petshop setting and a proper TZ library.
-export const PETSHOP_TZ_OFFSET_MIN = -180; // BRT = UTC-3
-const TZ_OFFSET_MS = PETSHOP_TZ_OFFSET_MIN * 60_000;
+import { DEFAULT_TIME_ZONE } from "@/lib/timezones";
 
 export const WEEKDAYS_PT = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"] as const;
+type DateParts = { year: number; month0: number; day: number; hour: number; minute: number; second: number };
 
-export function parseTimeOfDayToMinutes(hhmmss: string): number {
-  const [h, m] = hhmmss.split(":").map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
+function zonedParts(instant: Date, timeZone: string): DateParts {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(instant);
+  const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { year: get("year"), month0: get("month") - 1, day: get("day"), hour: get("hour"), minute: get("minute"), second: get("second") };
 }
 
-/**
- * Returns the UTC instant that corresponds to midnight in the petshop's
- * timezone for the given calendar date. With BRT (UTC-3), midnight BRT on
- * 2026-06-19 is 03:00 UTC.
- */
-export function utcInstantOfPetshopMidnight(year: number, month0: number, day: number): Date {
-  return new Date(Date.UTC(year, month0, day, 0, 0, 0, 0) - TZ_OFFSET_MS);
+function offsetMs(instant: Date, timeZone: string): number {
+  const p = zonedParts(instant, timeZone);
+  return Date.UTC(p.year, p.month0, p.day, p.hour, p.minute, p.second) - Math.floor(instant.getTime() / 1000) * 1000;
 }
 
-/**
- * Weekday (0-6) of the given UTC instant when interpreted as a petshop-local
- * wall-clock time. Use the *day's* midnight-UTC instant so DST-free Brazil is
- * deterministic.
- */
-export function petshopWeekday(petshopMidnightUtc: Date): number {
-  const wall = new Date(petshopMidnightUtc.getTime() + TZ_OFFSET_MS);
-  return wall.getUTCDay();
+export function utcInstantOfPetshopDateTime(year: number, month0: number, day: number, hour = 0, minute = 0, timeZone = DEFAULT_TIME_ZONE): Date {
+  const wallUtc = Date.UTC(year, month0, day, hour, minute, 0, 0);
+  let result = new Date(wallUtc - offsetMs(new Date(wallUtc), timeZone));
+  result = new Date(wallUtc - offsetMs(result, timeZone));
+  return result;
 }
-
-/**
- * Returns the UTC instant of midnight-petshop-TZ for the calendar date that the
- * given UTC instant falls under, in petshop-local terms.
- */
-export function petshopDateOf(instant: Date): { year: number; month0: number; day: number } {
-  const wall = new Date(instant.getTime() + TZ_OFFSET_MS);
-  return {
-    year: wall.getUTCFullYear(),
-    month0: wall.getUTCMonth(),
-    day: wall.getUTCDate(),
-  };
-}
-
-/**
- * Returns minutes-into-day in petshop-local terms for an instant.
- */
-export function petshopMinutesIntoDay(instant: Date): number {
-  const wall = new Date(instant.getTime() + TZ_OFFSET_MS);
-  return wall.getUTCHours() * 60 + wall.getUTCMinutes();
-}
-
-export function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60_000);
-}
-
-export function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
-  return aStart < bEnd && bStart < aEnd;
-}
-
-export function formatHHmmInPetshopTz(instant: Date): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "America/Sao_Paulo",
-  }).format(instant);
-}
-
-export function formatLongDateInPetshopTz(instant: Date): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    timeZone: "America/Sao_Paulo",
-  }).format(instant);
-}
-
-export function isSameDay(a: Date, b: Date): boolean {
-  const da = petshopDateOf(a);
-  const db = petshopDateOf(b);
-  return da.year === db.year && da.month0 === db.month0 && da.day === db.day;
-}
-
-export function todayPetshopMidnightUtc(): Date {
-  const { year, month0, day } = petshopDateOf(new Date());
-  return utcInstantOfPetshopMidnight(year, month0, day);
-}
-
-/**
- * Verifica se um instant UTC cai no dia de hoje em TZ petshop. Usado para
- * bloquear avanços de status (check-in/iniciar/finalizar) em agendamentos
- * que não são do dia corrente.
- */
-export function isPetshopToday(instant: Date): boolean {
-  const today = petshopDateOf(todayPetshopMidnightUtc());
-  const target = petshopDateOf(instant);
-  return (
-    today.year === target.year &&
-    today.month0 === target.month0 &&
-    today.day === target.day
-  );
-}
+export function utcInstantOfPetshopMidnight(year: number, month0: number, day: number, timeZone = DEFAULT_TIME_ZONE): Date { return utcInstantOfPetshopDateTime(year, month0, day, 0, 0, timeZone); }
+export function parseTimeOfDayToMinutes(hhmmss: string): number { const [h, m] = hhmmss.split(":").map(Number); return (h ?? 0) * 60 + (m ?? 0); }
+export function petshopDateOf(instant: Date, timeZone = DEFAULT_TIME_ZONE) { const p = zonedParts(instant, timeZone); return { year: p.year, month0: p.month0, day: p.day }; }
+export function petshopMinutesIntoDay(instant: Date, timeZone = DEFAULT_TIME_ZONE): number { const p = zonedParts(instant, timeZone); return p.hour * 60 + p.minute; }
+export function petshopWeekday(instant: Date, timeZone = DEFAULT_TIME_ZONE): number { const p = petshopDateOf(instant, timeZone); return new Date(Date.UTC(p.year, p.month0, p.day)).getUTCDay(); }
+export function addMinutes(date: Date, minutes: number): Date { return new Date(date.getTime() + minutes * 60_000); }
+export function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean { return aStart < bEnd && bStart < aEnd; }
+export function formatHHmmInPetshopTz(instant: Date, timeZone = DEFAULT_TIME_ZONE): string { return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone }).format(instant); }
+export function formatLongDateInPetshopTz(instant: Date, timeZone = DEFAULT_TIME_ZONE): string { return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric", timeZone }).format(instant); }
+export function isSameDay(a: Date, b: Date, timeZone = DEFAULT_TIME_ZONE): boolean { const da = petshopDateOf(a, timeZone); const db = petshopDateOf(b, timeZone); return da.year === db.year && da.month0 === db.month0 && da.day === db.day; }
+export function todayPetshopMidnightUtc(timeZone = DEFAULT_TIME_ZONE): Date { const p = petshopDateOf(new Date(), timeZone); return utcInstantOfPetshopMidnight(p.year, p.month0, p.day, timeZone); }
+export function isPetshopToday(instant: Date, timeZone = DEFAULT_TIME_ZONE): boolean { return isSameDay(instant, new Date(), timeZone); }

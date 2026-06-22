@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSession } from "@/lib/auth/session";
 import type { Database } from "@/lib/supabase/database.types";
+import { isReservedSubdomain } from "@/lib/subdomains";
 
 type PetshopStatus = Database["public"]["Enums"]["petshop_status"];
 
@@ -42,19 +43,6 @@ const createSchema = z.object({
 });
 
 // Subdomains reservados pra evitar colisão com app/admin/marketing.
-const RESERVED_SUBDOMAINS = new Set([
-  "www",
-  "app",
-  "admin",
-  "api",
-  "auth",
-  "static",
-  "assets",
-  "cdn",
-  "mail",
-  "blog",
-]);
-
 /**
  * Provisiona loja completa: petshops row + Supabase Auth user (dono) + users
  * profile + membership(role='owner'). Best-effort rollback se algum passo
@@ -86,7 +74,7 @@ export async function createPetshopWithOwner(
     return { ok: false, fieldErrors };
   }
 
-  if (RESERVED_SUBDOMAINS.has(parsed.data.subdomain)) {
+  if (isReservedSubdomain(parsed.data.subdomain)) {
     return {
       ok: false,
       fieldErrors: { subdomain: "Esse subdomínio é reservado pelo sistema." },
@@ -244,7 +232,7 @@ export async function savePetshop(formData: FormData): Promise<ActionState> {
     return { ok: false, fieldErrors };
   }
 
-  if (RESERVED_SUBDOMAINS.has(parsed.data.subdomain)) {
+  if (isReservedSubdomain(parsed.data.subdomain)) {
     return {
       ok: false,
       fieldErrors: { subdomain: "Esse subdomínio é reservado pelo sistema." },
@@ -310,7 +298,11 @@ export async function setPetshopStatus(
 
   const { error } = await admin
     .from("petshops")
-    .update({ status: parsed.data.status, updated_by: guard.userId })
+    .update({
+      status: parsed.data.status,
+      billing_blocked_at: null,
+      updated_by: guard.userId,
+    })
     .eq("id", parsed.data.id);
   if (error) return { ok: false, error: error.message };
 

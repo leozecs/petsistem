@@ -7,6 +7,7 @@ import {
   consumePublicRateLimit,
   getPublicClientIdentifier,
 } from "@/lib/security/public-rate-limit";
+import { isReservedSubdomain } from "@/lib/subdomains";
 
 export type SignupResult =
   | { ok: true; email: string }
@@ -25,19 +26,6 @@ const signupSchema = z
     path: ["confirm"],
     message: "As senhas não conferem",
   });
-
-const RESERVED_SUBDOMAINS = new Set([
-  "www",
-  "app",
-  "admin",
-  "api",
-  "auth",
-  "static",
-  "assets",
-  "cdn",
-  "mail",
-  "blog",
-]);
 
 function slugify(input: string): string {
   return input
@@ -60,11 +48,11 @@ async function pickUniqueSubdomain(
 ): Promise<string | null> {
   if (!admin) return null;
   const slug = slugify(base) || "loja";
-  if (RESERVED_SUBDOMAINS.has(slug)) return await pickUniqueSubdomain(admin, slug + "-pet");
+  if (isReservedSubdomain(slug)) return await pickUniqueSubdomain(admin, slug + "-pet");
 
   const candidates = [slug, ...Array.from({ length: 50 }, (_, i) => `${slug}-${i + 2}`)];
   for (const cand of candidates) {
-    if (RESERVED_SUBDOMAINS.has(cand)) continue;
+    if (isReservedSubdomain(cand)) continue;
     const { data: existing } = await admin
       .from("petshops")
       .select("id")
