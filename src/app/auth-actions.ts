@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies, headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -167,5 +168,8 @@ export async function setActivePetshop(petshopId: string): Promise<{ ok: boolean
     secure: process.env.NODE_ENV === "production",
     path: "/",
   });
+  // Forca re-render do painel pra refletir a loja ativa nova em todas as
+  // pages cacheadas (dashboard, sidebar, etc).
+  revalidatePath("/app", "layout");
   return { ok: true };
 }

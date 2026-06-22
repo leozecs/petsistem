@@ -84,9 +84,11 @@ export const getSession = cache(async function getSession(): Promise<SessionCont
   // query (Postgres não garante ordem sem ORDER BY). Cookie pode sobrescrever.
   const memberships: Membership[] = (rawMemberships ?? [])
     .filter((m): m is RawMembership & { petshop: NonNullable<RawMembership["petshop"]> } => m.petshop !== null)
-    .sort((a, b) =>
-      (a.petshop!.created_at ?? "").localeCompare(b.petshop!.created_at ?? ""),
-    )
+    .sort((a, b) => {
+      const av = a.petshop!.created_at ?? "";
+      const bv = b.petshop!.created_at ?? "";
+      return av < bv ? -1 : av > bv ? 1 : 0;
+    })
     .map((m) => ({
       petshopId: m.petshop_id,
       role: m.role,
