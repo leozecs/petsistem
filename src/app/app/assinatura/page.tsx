@@ -33,14 +33,24 @@ export default async function SubscriptionPage() {
   const supabase = await createClient();
   if (!supabase) redirect("/login?error=supabase-not-configured");
 
-  const { data: subscription, error } = await supabase
-    .from("subscriptions")
-    .select("id, petshop_id, plan_name, amount_cents, due_date, status, pix_key, created_at")
-    .eq("petshop_id", membership.petshopId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [subscriptionResult, platformSettingsResult] = await Promise.all([
+    supabase
+      .from("subscriptions")
+      .select("id, petshop_id, plan_name, amount_cents, due_date, status, created_at")
+      .eq("petshop_id", membership.petshopId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("platform_settings")
+      .select("pix_key, pix_holder_name")
+      .eq("id", 1)
+      .maybeSingle(),
+  ]);
+
+  const subscription = subscriptionResult.data;
+  const error = subscriptionResult.error ?? platformSettingsResult.error;
 
   if (error) {
     console.error("Failed to load tenant subscription", {
@@ -84,6 +94,8 @@ export default async function SubscriptionPage() {
   }
 
   const status = statusPresentation[subscription.status];
+  const platformPixKey = platformSettingsResult.data?.pix_key ?? null;
+  const platformPixHolder = platformSettingsResult.data?.pix_holder_name ?? null;
 
   return (
     <div>
@@ -123,14 +135,17 @@ export default async function SubscriptionPage() {
           <CardContent className="p-6">
             <CreditCard className="size-7" />
             <h2 className="mt-5 text-xl font-semibold">Pagamento via Pix</h2>
-            {subscription.pix_key ? (
+            {platformPixKey ? (
               <>
                 <p className="mt-3 text-sm leading-6 text-zinc-300">
                   Use a chave abaixo para realizar o pagamento desta assinatura.
                 </p>
                 <div className="mt-5 break-all rounded-lg bg-white/10 p-4 font-mono text-sm">
-                  {subscription.pix_key}
+                  {platformPixKey}
                 </div>
+                {platformPixHolder ? (
+                  <p className="mt-3 text-xs text-zinc-400">Titular: {platformPixHolder}</p>
+                ) : null}
               </>
             ) : (
               <p className="mt-3 text-sm leading-6 text-zinc-300">
