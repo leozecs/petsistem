@@ -94,10 +94,17 @@ function ChecklistCardItem({ card }: { card: ChecklistCard }) {
   return (
     <Card className="rounded-xl border-zinc-200 bg-white shadow-none transition hover:border-zinc-300">
       <CardContent className="p-0">
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => setExpanded((v) => !v)}
-          className="flex w-full items-center gap-3 p-4 text-left"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setExpanded((v) => !v);
+            }
+          }}
+          className="flex w-full cursor-pointer items-center gap-3 p-4 text-left"
         >
           <div className="font-mono text-sm tabular-nums text-zinc-500">
             {HOUR_FMT.format(new Date(card.startIso))}
@@ -121,12 +128,15 @@ function ChecklistCardItem({ card }: { card: ChecklistCard }) {
               {doneCount}/{total}
             </span>
           ) : null}
+          {card.trackingSlug ? (
+            <CopyLinkIconButton slug={card.trackingSlug} petName={card.petName} />
+          ) : null}
           {expanded ? (
             <ChevronUp className="size-4 text-zinc-400" />
           ) : (
             <ChevronDown className="size-4 text-zinc-400" />
           )}
-        </button>
+        </div>
 
         {expanded ? (
           <div className="border-t border-zinc-100 p-4">
@@ -281,6 +291,37 @@ function StepRow({
         </div>
       </div>
     </li>
+  );
+}
+
+function CopyLinkIconButton({ slug, petName }: { slug: string; petName: string }) {
+  const copy = async (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    const url =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/acompanhamento/${slug}`
+        : `/acompanhamento/${slug}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link do tutor copiado.");
+    } catch {
+      toast.error("Não consegui copiar.");
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") copy(e);
+      }}
+      className="inline-flex size-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-600 transition hover:border-zinc-400 hover:text-zinc-900"
+      aria-label={`Copiar link de acompanhamento de ${petName}`}
+      title="Copiar link do tutor"
+    >
+      <LinkIcon className="size-3.5" />
+    </button>
   );
 }
 

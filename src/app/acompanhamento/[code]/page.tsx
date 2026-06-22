@@ -199,63 +199,41 @@ export default async function TrackingPage({
   const pct = steps.length > 0 ? Math.round((doneCount / steps.length) * 100) : 0;
   const macroIdx = MACRO_FLOW.indexOf(status as (typeof MACRO_FLOW)[number]);
 
-  return (
-    <main className="min-h-[100dvh] bg-[#f7f5ef] px-4 py-6 text-zinc-950 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-2xl space-y-4">
-        <Card className="rounded-2xl border-zinc-200 bg-white shadow-sm">
-          <CardContent className="p-6 sm:p-8">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  {shopName}
-                </p>
-                <h1
-                  className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950"
-                  style={{ fontFamily: "var(--font-bricolage)" }}
-                >
-                  {petName}
-                </h1>
-                <p className="mt-1 text-sm text-zinc-600">{serviceName}</p>
-                <p className="mt-2 text-xs text-zinc-500">{formatDateTimeBR(appt.starts_at)}</p>
-              </div>
-              <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-[#f7f5ef]">
-                <PawPrint className="size-6" />
-              </div>
-            </div>
+  // Tudo que não é checklist foi removido a pedido: a página pública é APENAS
+  // o checklist. Mantemos um header mínimo (loja + pet + serviço) só pra dar
+  // contexto pro tutor de qual atendimento é. Nada de data/hora, status badge,
+  // observações internas, WhatsApp ou macro fallback.
+  void statusInfo;
+  void formatDateTimeBR;
+  void macroIdx;
+  void MACRO_LABEL;
 
-            <div
-              className={cn(
-                "mt-6 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium",
-                statusInfo.tone === "emerald" &&
-                  "border-emerald-200 bg-emerald-50 text-emerald-800",
-                statusInfo.tone === "amber" &&
-                  "border-amber-200 bg-amber-50 text-amber-800",
-                statusInfo.tone === "sky" && "border-sky-200 bg-sky-50 text-sky-800",
-                statusInfo.tone === "rose" &&
-                  "border-rose-200 bg-rose-50 text-rose-800",
-              )}
+  return (
+    <main className="min-h-[100dvh] bg-[#f7f5ef] px-4 py-8 text-zinc-950 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-xl space-y-4">
+        <div className="flex items-center gap-3 px-2">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-[#f7f5ef]">
+            <PawPrint className="size-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              {shopName}
+            </p>
+            <p
+              className="truncate text-xl font-semibold tracking-tight text-zinc-950"
+              style={{ fontFamily: "var(--font-bricolage)" }}
             >
-              <span
-                className={cn(
-                  "size-2 rounded-full",
-                  statusInfo.tone === "emerald" && "bg-emerald-600",
-                  statusInfo.tone === "amber" && "bg-amber-600",
-                  statusInfo.tone === "sky" && "bg-sky-600",
-                  statusInfo.tone === "rose" && "bg-rose-600",
-                )}
-              />
-              {statusInfo.label}
-            </div>
-          </CardContent>
-        </Card>
+              {petName}
+            </p>
+            <p className="truncate text-xs text-zinc-500">{serviceName}</p>
+          </div>
+        </div>
 
         {!isTerminal && steps.length > 0 ? (
           <Card className="rounded-2xl border-zinc-200 bg-white shadow-sm">
             <CardContent className="p-6 sm:p-8">
               <div className="flex items-baseline justify-between">
-                <p className="text-sm font-semibold text-zinc-900">
-                  Etapas do atendimento
-                </p>
+                <p className="text-sm font-semibold text-zinc-900">Checklist</p>
                 <span className="font-mono text-xs tabular-nums text-zinc-500">
                   {doneCount}/{steps.length}
                 </span>
@@ -314,116 +292,27 @@ export default async function TrackingPage({
               </ol>
             </CardContent>
           </Card>
-        ) : !isTerminal ? (
-          // Fallback macro: serviço ainda não tem etapas configuradas
+        ) : isTerminal ? (
           <Card className="rounded-2xl border-zinc-200 bg-white shadow-sm">
-            <CardContent className="p-6 sm:p-8">
-              <p className="text-sm font-semibold text-zinc-900">Acompanhamento</p>
-              <ol className="mt-4 space-y-3">
-                {MACRO_FLOW.map((step, idx) => {
-                  const done = macroIdx >= idx;
-                  const current = macroIdx === idx && status !== "finished";
-                  return (
-                    <li key={step} className="flex gap-4">
-                      <div
-                        className={cn(
-                          "flex size-8 shrink-0 items-center justify-center rounded-lg border",
-                          done && !current && "border-emerald-200 bg-emerald-50 text-emerald-700",
-                          current && "border-amber-200 bg-amber-50 text-amber-700",
-                          !done && "border-zinc-200 bg-zinc-50 text-zinc-400",
-                        )}
-                      >
-                        {done && !current ? (
-                          <Check className="size-4" strokeWidth={3} />
-                        ) : (
-                          <Clock className="size-4" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1 border-b border-zinc-100 pb-3">
-                        <p
-                          className={cn(
-                            "text-sm",
-                            (done || current) ? "font-medium text-zinc-900" : "text-zinc-500",
-                          )}
-                        >
-                          {MACRO_LABEL[step]}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+            <CardContent className="p-6 text-center">
+              <p className="text-sm text-zinc-600">
+                {status === "cancelled"
+                  ? "Atendimento cancelado."
+                  : "Pet não compareceu."}
+              </p>
             </CardContent>
           </Card>
-        ) : null}
-
-        {appt.checklist_meta &&
-        (status === "in_progress" || status === "finished") &&
-        (appt.checklist_meta.arrival_condition ||
-          (appt.checklist_meta.products && appt.checklist_meta.products.length > 0) ||
-          appt.checklist_meta.notes) ? (
+        ) : (
           <Card className="rounded-2xl border-zinc-200 bg-white shadow-sm">
-            <CardContent className="p-6 sm:p-8">
-              <p className="text-sm font-semibold text-zinc-900">Observações</p>
-              {appt.checklist_meta.arrival_condition ? (
-                <p className="mt-3 text-sm text-zinc-700">
-                  <span className="font-medium">Chegada: </span>
-                  {appt.checklist_meta.arrival_condition}
-                </p>
-              ) : null}
-              {appt.checklist_meta.products && appt.checklist_meta.products.length > 0 ? (
-                <div className="mt-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    Produtos usados
-                  </p>
-                  <ul className="mt-2 flex flex-wrap gap-1.5">
-                    {appt.checklist_meta.products.map((p) => (
-                      <li
-                        key={p}
-                        className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-800"
-                      >
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {appt.checklist_meta.notes ? (
-                <div className="mt-3 rounded-lg bg-zinc-50 p-3 text-sm text-zinc-700">
-                  {appt.checklist_meta.notes}
-                </div>
-              ) : null}
+            <CardContent className="flex items-center gap-2 p-5">
+              <Camera className="size-4 shrink-0 text-zinc-400" />
+              <p className="text-sm text-zinc-600">
+                O atendimento ainda não começou. As etapas aparecem aqui quando
+                {" "}o pet entrar no banho.
+              </p>
             </CardContent>
           </Card>
-        ) : null}
-
-        {steps.length === 0 && !isTerminal ? (
-          <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-xs text-zinc-500">
-            <Camera className="size-3.5" />
-            Quando o atendimento começar, as etapas e fotos aparecem aqui.
-          </div>
-        ) : null}
-
-        <p className="text-center text-xs text-zinc-500">
-          Esta página atualiza sozinha conforme o atendimento avança. Em caso de dúvida, fale com
-          {appt.petshop?.whatsapp ? (
-            <>
-              {" "}
-              o {shopName} no WhatsApp{" "}
-              <a
-                href={`https://wa.me/${appt.petshop.whatsapp.replace(/\D/g, "")}`}
-                className="font-medium text-emerald-800 hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                aqui
-              </a>
-              .
-            </>
-          ) : (
-            ` o ${shopName}.`
-          )}
-        </p>
+        )}
       </div>
     </main>
   );
