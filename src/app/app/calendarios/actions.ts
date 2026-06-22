@@ -7,6 +7,7 @@ import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { petshopMinutesIntoDay, petshopWeekday, petshopDateOf, utcInstantOfPetshopMidnight, parseTimeOfDayToMinutes } from "@/lib/calendar/time";
 import { effectiveSchedules } from "@/lib/calendar/availability";
 import { canTransition } from "@/lib/calendar/status";
+import { generateTrackingSlug } from "@/lib/tracking/slug";
 import type { Database } from "@/lib/supabase/database.types";
 
 type ServiceArea = Database["public"]["Enums"]["service_area"];
@@ -195,10 +196,11 @@ export async function saveAppointment(
     if (cliErr) return { ok: false, error: cliErr.message };
     if (!client) return { ok: false, error: "Tutor não encontrado nesta loja." };
   }
+  let petNameForSlug: string | null = null;
   if (parsed.data.pet_id) {
     const { data: pet, error: petErr } = await supabase
       .from("pets")
-      .select("id, client_id")
+      .select("id, name, client_id")
       .eq("id", parsed.data.pet_id)
       .eq("petshop_id", membership.petshopId)
       .is("deleted_at", null)
@@ -208,6 +210,7 @@ export async function saveAppointment(
     if (parsed.data.client_id && pet.client_id !== parsed.data.client_id) {
       return { ok: false, error: "O pet não pertence ao tutor selecionado." };
     }
+    petNameForSlug = pet.name;
   }
 
   // Confirm professional (vet or employee) belongs to this petshop.
@@ -258,9 +261,18 @@ export async function saveAppointment(
     // New appointments start at `confirmed` — counter-staff bookings are valid
     // out of the box; no separate "confirm" gate. Drag back to `pending` is not
     // exposed in the UI but the enum still supports it for legacy rows.
+    const tracking_slug = generateTrackingSlug(
+      petNameForSlug ?? parsed.data.tutor_name ?? null,
+      payload.starts_at,
+    );
     const { data: inserted, error } = await supabase
       .from("appointments")
-      .insert({ ...payload, status: "confirmed", created_by: session.user.id })
+      .insert({
+        ...payload,
+        status: "confirmed",
+        tracking_slug,
+        created_by: session.user.id,
+      })
       .select("id")
       .single();
     if (error) return { ok: false, error: friendlyError(error.message) };

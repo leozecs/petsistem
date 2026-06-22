@@ -120,7 +120,7 @@ export default async function CalendariosPage({
       ? supabase
           .from("appointments")
           .select(
-            "id, starts_at, ends_at, status, tutor_name, notes, pet:pets(name), service:services(name, duration_minutes, price_cents), veterinarian:veterinarians(name), employee:employees(name), client:clients(name, phone, whatsapp)",
+            "id, starts_at, ends_at, status, tutor_name, notes, tracking_slug, pet:pets(name), service:services(name, duration_minutes, price_cents), veterinarian:veterinarians(name), employee:employees(name), client:clients(name, phone, whatsapp)",
           )
           .eq("petshop_id", membership.petshopId)
           .eq("calendar_id", calendarHint)
@@ -162,7 +162,7 @@ export default async function CalendariosPage({
       supabase
         .from("appointments")
         .select(
-          "id, starts_at, ends_at, status, tutor_name, notes, pet:pets(name), service:services(name, duration_minutes, price_cents), veterinarian:veterinarians(name), employee:employees(name), client:clients(name, phone, whatsapp)",
+          "id, starts_at, ends_at, status, tutor_name, notes, tracking_slug, pet:pets(name), service:services(name, duration_minutes, price_cents), veterinarian:veterinarians(name), employee:employees(name), client:clients(name, phone, whatsapp)",
         )
         .eq("petshop_id", membership.petshopId)
         .eq("calendar_id", activeCalendar.id)
@@ -189,6 +189,7 @@ export default async function CalendariosPage({
     status: AppointmentInput["status"];
     tutor_name: string | null;
     notes: string | null;
+    tracking_slug: string | null;
     pet: { name: string } | null;
     service: { name: string; duration_minutes: number; price_cents: number } | null;
     veterinarian: { name: string } | null;
@@ -211,6 +212,7 @@ export default async function CalendariosPage({
       tutor_phone: string | null;
       tutor_whatsapp: string | null;
       price_cents: number;
+      tracking_slug: string | null;
     }>
   > = {};
   for (const a of apptRows) {
@@ -229,6 +231,7 @@ export default async function CalendariosPage({
       tutor_phone: a.client?.phone ?? null,
       tutor_whatsapp: a.client?.whatsapp ?? null,
       price_cents: a.service?.price_cents ?? 0,
+      tracking_slug: a.tracking_slug,
     });
   }
 

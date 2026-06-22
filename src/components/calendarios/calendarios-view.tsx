@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ChevronRight as ChevronAdvance,
   ClipboardList,
+  Link as LinkIcon,
   MessageCircle,
   PenLine,
   Plus,
@@ -88,6 +89,7 @@ type ApptSummary = {
   tutor_phone: string | null;
   tutor_whatsapp: string | null;
   price_cents: number;
+  tracking_slug: string | null;
 };
 
 type Props = {
@@ -871,6 +873,13 @@ export function CalendariosView({
                           </a>
                         ) : null;
                       })()}
+                      {a.tracking_slug ? (
+                        <TrackingShareButtons
+                          slug={a.tracking_slug}
+                          petName={a.pet_name}
+                          tutorWhatsapp={a.tutor_whatsapp ?? a.tutor_phone}
+                        />
+                      ) : null}
                       {isTerminal(a.status) ? null : (
                         <div className="mt-3 flex flex-wrap gap-1">
                           {(() => {
@@ -1250,5 +1259,59 @@ function FinalizeDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function TrackingShareButtons({
+  slug,
+  petName,
+  tutorWhatsapp,
+}: {
+  slug: string;
+  petName: string | null;
+  tutorWhatsapp: string | null;
+}) {
+  const trackingUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/acompanhamento/${slug}`
+      : `https://petsistem.com.br/acompanhamento/${slug}`;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(trackingUrl);
+      toast.success("Link copiado.");
+    } catch {
+      toast.error("Não consegui copiar. Pegue o link manualmente.");
+    }
+  };
+
+  const waNumber = tutorWhatsapp ? tutorWhatsapp.replace(/\D/g, "") : "";
+  const waText = encodeURIComponent(
+    `Oi! Acompanhe o atendimento ${petName ? `de ${petName} ` : ""}aqui: ${trackingUrl}`,
+  );
+  const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${waText}` : null;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50"
+      >
+        <LinkIcon className="size-3" />
+        Copiar link tutor
+      </button>
+      {waUrl ? (
+        <a
+          href={waUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[0.6875rem] font-medium text-emerald-800 transition hover:bg-emerald-100"
+        >
+          <MessageCircle className="size-3" />
+          Enviar acompanhamento
+        </a>
+      ) : null}
+    </div>
   );
 }
