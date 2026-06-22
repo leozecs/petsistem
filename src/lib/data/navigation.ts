@@ -12,6 +12,7 @@ import {
   Settings,
   Store,
   Stethoscope,
+  Tags,
   Users,
   UserCog,
   type LucideIcon,
@@ -46,6 +47,7 @@ export const ownerNav: NavItem[] = [
   { href: "/app/relatorios", label: "Relatórios", icon: FileBarChart },
   { href: "/app/assinatura", label: "Assinatura", icon: CreditCard },
   { href: "/app/configuracoes/horarios", label: "Horários", icon: Clock },
+  { href: "/app/configuracoes/categorias", label: "Categorias", icon: Tags },
   { href: "/app/configuracoes", label: "Configurações", icon: Settings },
 ];
 

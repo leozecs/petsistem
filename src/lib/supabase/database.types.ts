@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -247,6 +247,7 @@ export type Database = {
           service_id: string
           starts_at: string
           status: Database["public"]["Enums"]["appointment_status"]
+          tracking_slug: string | null
           tutor_name: string | null
           tutor_phone: string | null
           updated_at: string
@@ -271,6 +272,7 @@ export type Database = {
           service_id: string
           starts_at: string
           status?: Database["public"]["Enums"]["appointment_status"]
+          tracking_slug?: string | null
           tutor_name?: string | null
           tutor_phone?: string | null
           updated_at?: string
@@ -295,6 +297,7 @@ export type Database = {
           service_id?: string
           starts_at?: string
           status?: Database["public"]["Enums"]["appointment_status"]
+          tracking_slug?: string | null
           tutor_name?: string | null
           tutor_phone?: string | null
           updated_at?: string
@@ -496,6 +499,70 @@ export type Database = {
           },
         ]
       }
+      categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          kind: Database["public"]["Enums"]["category_kind"]
+          name: string
+          petshop_id: string
+          position: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["category_kind"]
+          name: string
+          petshop_id: string
+          position?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["category_kind"]
+          name?: string
+          petshop_id?: string
+          position?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_petshop_id_fkey"
+            columns: ["petshop_id"]
+            isOneToOne: false
+            referencedRelation: "petshops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checklist_photos: {
         Row: {
           caption: string | null
@@ -559,6 +626,7 @@ export type Database = {
           label: string
           petshop_id: string
           position: number
+          service_id: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -572,6 +640,7 @@ export type Database = {
           label: string
           petshop_id: string
           position: number
+          service_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -585,6 +654,7 @@ export type Database = {
           label?: string
           petshop_id?: string
           position?: number
+          service_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -611,6 +681,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "checklist_steps_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "checklist_steps_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
@@ -630,6 +707,7 @@ export type Database = {
           id: string
           notes: string | null
           petshop_id: string
+          photo_path: string | null
           step_id: string
           updated_at: string
           updated_by: string | null
@@ -644,6 +722,7 @@ export type Database = {
           id?: string
           notes?: string | null
           petshop_id: string
+          photo_path?: string | null
           step_id: string
           updated_at?: string
           updated_by?: string | null
@@ -658,6 +737,7 @@ export type Database = {
           id?: string
           notes?: string | null
           petshop_id?: string
+          photo_path?: string | null
           step_id?: string
           updated_at?: string
           updated_by?: string | null
@@ -991,6 +1071,7 @@ export type Database = {
         Row: {
           amount_cents: number
           category: Database["public"]["Enums"]["expense_category"]
+          category_id: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -1009,6 +1090,7 @@ export type Database = {
         Insert: {
           amount_cents: number
           category?: Database["public"]["Enums"]["expense_category"]
+          category_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1027,6 +1109,7 @@ export type Database = {
         Update: {
           amount_cents?: number
           category?: Database["public"]["Enums"]["expense_category"]
+          category_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1043,6 +1126,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_created_by_fkey"
             columns: ["created_by"]
@@ -1629,6 +1719,93 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "platform_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_items: {
+        Row: {
+          amount_cents: number
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string
+          id: string
+          notes: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          petshop_id: string
+          received_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount_cents: number
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description: string
+          id?: string
+          notes?: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          petshop_id: string
+          received_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string
+          id?: string
+          notes?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          petshop_id?: string
+          received_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_items_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_items_petshop_id_fkey"
+            columns: ["petshop_id"]
+            isOneToOne: false
+            referencedRelation: "petshops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revenue_items_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "users"
@@ -2238,6 +2415,7 @@ export type Database = {
         | "finished"
         | "cancelled"
         | "no_show"
+      category_kind: "revenue" | "expense"
       expense_category:
         | "rent"
         | "utilities"
@@ -2408,6 +2586,7 @@ export const Constants = {
         "cancelled",
         "no_show",
       ],
+      category_kind: ["revenue", "expense"],
       expense_category: [
         "rent",
         "utilities",
@@ -2449,4 +2628,3 @@ export const Constants = {
     },
   },
 } as const
-
