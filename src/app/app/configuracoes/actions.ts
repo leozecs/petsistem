@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
+import { contrastWithWhite, MIN_AA_CONTRAST } from "@/lib/color";
 
 export type ActionState = {
   ok: boolean;
@@ -90,6 +91,16 @@ export async function updatePetshopVisual(
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  // A sidebar usa essa cor como bg e renderiza texto branco. Bloqueia cores
+  // muito claras (ratio AA < 4.5) pra evitar texto ilegível.
+  const ratio = contrastWithWhite(parsed.data.primary_color);
+  if (ratio < MIN_AA_CONTRAST) {
+    return {
+      ok: false,
+      error: `Cor muito clara — texto branco da sidebar ficaria ilegível (contraste ${ratio.toFixed(2)}:1, mínimo 4.5:1). Use uma cor mais escura.`,
+    };
   }
 
   const supabase = await createClient();

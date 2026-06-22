@@ -35,6 +35,7 @@ import {
   updatePetshopVisual,
   uploadPetshopLogo,
 } from "@/app/app/configuracoes/actions";
+import { contrastWithWhite, MIN_AA_CONTRAST } from "@/lib/color";
 
 type Props = {
   petshop: {
@@ -518,9 +519,25 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
                   Preview
                 </div>
 
+                {(() => {
+                  const ratio = contrastWithWhite(color);
+                  const ok = ratio >= MIN_AA_CONTRAST;
+                  return (
+                    <p
+                      className={
+                        "text-xs " +
+                        (ok ? "text-emerald-700" : "text-rose-700 font-medium")
+                      }
+                    >
+                      Contraste com texto branco: {ratio.toFixed(2)}:1
+                      {ok ? " ✓ ok" : " — muito clara, escolha uma cor mais escura."}
+                    </p>
+                  );
+                })()}
+
                 <Button
                   type="submit"
-                  disabled={pending}
+                  disabled={pending || contrastWithWhite(color) < MIN_AA_CONTRAST}
                   className="rounded-md bg-zinc-950 text-white hover:bg-zinc-800"
                 >
                   <Save className="size-4" />
