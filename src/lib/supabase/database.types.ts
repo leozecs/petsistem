@@ -228,6 +228,55 @@ export type Database = {
           },
         ]
       }
+      appointment_step_photos: {
+        Row: {
+          checklist_id: string
+          created_at: string
+          id: string
+          petshop_id: string
+          photo_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          checklist_id: string
+          created_at?: string
+          id?: string
+          petshop_id: string
+          photo_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          checklist_id?: string
+          created_at?: string
+          id?: string
+          petshop_id?: string
+          photo_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_step_photos_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_step_photos_petshop_id_fkey"
+            columns: ["petshop_id"]
+            isOneToOne: false
+            referencedRelation: "petshops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_step_photos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           calendar_id: string

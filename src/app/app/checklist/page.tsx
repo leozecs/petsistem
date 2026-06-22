@@ -1,56 +1,177 @@
-import { Check, ClipboardCheck } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { SectionHeading } from "@/components/app/section-heading";
-import { checklistSteps } from "@/lib/data/demo";
-import { cn } from "@/lib/utils";
+import { redirect } from "next/navigation";
+import { ChecklistDayView, type ChecklistCard } from "@/components/checklist/checklist-day-view";
+import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  petshopDateOf,
+  todayPetshopMidnightUtc,
+  utcInstantOfPetshopMidnight,
+} from "@/lib/calendar/time";
+import type { Database } from "@/lib/supabase/database.types";
 
-export default function ChecklistPage() {
-  return (
-    <div>
-      <SectionHeading
-        title="Checklist operacional"
-        description="Fluxo timestampado por usuário para banho, tosa e retirada."
-      />
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
-        <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              {checklistSteps.map((step, index) => (
-                <div key={step.label} className="flex gap-4">
-                  <div
-                    className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-lg border text-sm font-semibold",
-                      step.done && "border-emerald-200 bg-emerald-50 text-emerald-700",
-                      step.current && "border-amber-200 bg-amber-50 text-amber-700",
-                      !step.done && !step.current && "border-zinc-200 bg-zinc-50 text-zinc-400",
-                    )}
-                  >
-                    {step.done ? <Check className="size-4" /> : index + 1}
-                  </div>
-                  <div className="min-w-0 flex-1 border-b border-zinc-100 pb-4">
-                    <p className="font-medium text-zinc-950">{step.label}</p>
-                    <p className="mt-1 text-sm text-zinc-500">{step.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+type ServiceArea = Database["public"]["Enums"]["service_area"];
 
-        <Card className="rounded-lg border-zinc-200 bg-zinc-950 text-white shadow-none">
-          <CardContent className="p-6">
-            <ClipboardCheck className="size-7" />
-            <h2 className="mt-5 text-xl font-semibold">Link do tutor</h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-300">
-              Cada checklist gera um código público para acompanhamento sem login. As atualizações usam Supabase
-              Realtime quando o projeto estiver conectado.
-            </p>
-            <div className="mt-5 rounded-lg bg-white/10 p-4 font-mono text-sm">
-              /acompanhamento/ABC123
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+function allowedAreas(role: string): ServiceArea[] {
+  if (role === "owner") return ["grooming", "veterinary"];
+  if (role === "attendant") return ["grooming"];
+  if (role === "veterinarian") return ["veterinary"];
+  return [];
+}
+
+const SIGNED_URL_TTL_SECONDS = 60 * 30; // 30 min — refresca a cada reload
+
+export default async function ChecklistPage() {
+  const { membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant", "veterinarian"])) {
+    redirect("/app");
+  }
+
+  const supabase = await createClient();
+  if (!supabase) redirect("/login?error=supabase-not-configured");
+
+  const areas = allowedAreas(membership.role);
+
+  // Janela hoje em TZ petshop
+  const today = petshopDateOf(todayPetshopMidnightUtc());
+  const startTs = utcInstantOfPetshopMidnight(today.year, today.month0, today.day).toISOString();
+  const endTs = utcInstantOfPetshopMidnight(today.year, today.month0, today.day + 1).toISOString();
+
+  // 1. Appointments hoje na área do role com status relevante
+  const { data: apptsRaw } = await supabase
+    .from("appointments")
+    .select(
+      "id, starts_at, ends_at, status, tracking_slug, pet:pets(name, species), service:services(id, name, area), calendar:calendars!inner(area)",
+    )
+    .eq("petshop_id", membership.petshopId)
+    .gte("starts_at", startTs)
+    .lt("starts_at", endTs)
+    .in("status", ["confirmed", "checked_in", "in_progress"])
+    .is("deleted_at", null)
+    .order("starts_at");
+
+  type RawAppt = {
+    id: string;
+    starts_at: string;
+    ends_at: string;
+    status: string;
+    tracking_slug: string | null;
+    pet: { name: string; species: string } | null;
+    service: { id: string; name: string; area: ServiceArea } | null;
+    calendar: { area: ServiceArea } | null;
+  };
+
+  const allAppts = ((apptsRaw ?? []) as RawAppt[]).filter(
+    (a) => a.calendar && areas.includes(a.calendar.area),
   );
+
+  if (allAppts.length === 0) {
+    return <ChecklistDayView cards={[]} />;
+  }
+
+  const serviceIds = Array.from(
+    new Set(allAppts.map((a) => a.service?.id).filter((v): v is string => !!v)),
+  );
+  const apptIds = allAppts.map((a) => a.id);
+
+  // 2. Steps: por serviço, fallback global (service_id IS NULL)
+  const stepsByService = new Map<string, Array<{ id: string; label: string; position: number }>>();
+  const globalSteps: Array<{ id: string; label: string; position: number }> = [];
+
+  if (serviceIds.length > 0) {
+    const { data: serviceSteps } = await supabase
+      .from("checklist_steps")
+      .select("id, label, position, service_id")
+      .eq("petshop_id", membership.petshopId)
+      .eq("active", true)
+      .in("service_id", serviceIds)
+      .order("position");
+    for (const s of serviceSteps ?? []) {
+      if (!s.service_id) continue;
+      const arr = stepsByService.get(s.service_id) ?? [];
+      arr.push({ id: s.id, label: s.label, position: s.position });
+      stepsByService.set(s.service_id, arr);
+    }
+  }
+
+  const { data: globalRows } = await supabase
+    .from("checklist_steps")
+    .select("id, label, position")
+    .eq("petshop_id", membership.petshopId)
+    .eq("active", true)
+    .is("service_id", null)
+    .order("position");
+  for (const g of globalRows ?? []) {
+    globalSteps.push({ id: g.id, label: g.label, position: g.position });
+  }
+
+  // 3. Checklists rows (etapas marcadas) + 4. Fotos
+  const { data: checklistsRows } = await supabase
+    .from("checklists")
+    .select("id, appointment_id, step_id, completed_at, notes")
+    .eq("petshop_id", membership.petshopId)
+    .in("appointment_id", apptIds);
+
+  const checklistIds = (checklistsRows ?? []).map((c) => c.id);
+
+  let photosRows: Array<{ id: string; checklist_id: string; photo_path: string }> = [];
+  if (checklistIds.length > 0) {
+    const { data: p } = await supabase
+      .from("appointment_step_photos")
+      .select("id, checklist_id, photo_path")
+      .in("checklist_id", checklistIds)
+      .order("created_at");
+    photosRows = p ?? [];
+  }
+
+  // 5. Signed URLs em lote
+  const admin = createAdminClient();
+  const photoIdsByPath = new Map<string, string>();
+  for (const ph of photosRows) photoIdsByPath.set(ph.photo_path, ph.id);
+  const signedByPath = new Map<string, string>();
+  if (admin && photosRows.length > 0) {
+    const paths = photosRows.map((p) => p.photo_path);
+    const { data: signed } = await admin.storage
+      .from("appointment-photos")
+      .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+    for (const s of signed ?? []) {
+      if (s.path && s.signedUrl) signedByPath.set(s.path, s.signedUrl);
+    }
+  }
+
+  // Bind por appointment
+  const cards: ChecklistCard[] = allAppts.map((a) => {
+    const steps = (a.service?.id ? stepsByService.get(a.service.id) : null) ?? globalSteps;
+    const checklistsForAppt = (checklistsRows ?? []).filter((c) => c.appointment_id === a.id);
+
+    return {
+      appointmentId: a.id,
+      petName: a.pet?.name ?? "Pet sem nome",
+      serviceName: a.service?.name ?? "Serviço",
+      area: a.service?.area ?? "grooming",
+      status: a.status as ChecklistCard["status"],
+      startIso: a.starts_at,
+      trackingSlug: a.tracking_slug,
+      steps: steps.map((s) => {
+        const row = checklistsForAppt.find((c) => c.step_id === s.id);
+        const photos = row
+          ? photosRows
+              .filter((p) => p.checklist_id === row.id)
+              .map((p) => ({
+                id: p.id,
+                url: signedByPath.get(p.photo_path) ?? null,
+              }))
+              .filter((p) => p.url)
+          : [];
+        return {
+          stepId: s.id,
+          label: s.label,
+          done: !!row?.completed_at,
+          photos: photos as Array<{ id: string; url: string }>,
+        };
+      }),
+    };
+  });
+
+  return <ChecklistDayView cards={cards} />;
 }
