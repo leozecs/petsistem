@@ -37,7 +37,7 @@ type HostKind =
   | { kind: "apex" } // petsistem.com.br (or localhost)
   | { kind: "unknown" }; // unrecognized host — pass through
 
-function classifyHost(host: string): HostKind {
+export function classifyHost(host: string): HostKind {
   const bare = host.toLowerCase().split(":")[0]!;
   for (const root of ROOT_DOMAINS) {
     if (bare === root) return { kind: "apex" };

@@ -31,15 +31,14 @@ function formatBRL(cents: number): string {
   });
 }
 
-// Rotina real, escrita pelo cliente. Cada bloco mostra um momento concreto
-// do dia do petshop em vez de um card genérico de feature.
+// Exemplos de uso do produto. Cada bloco mostra um momento concreto do dia.
 const dayMoments = [
   {
     when: "07h42",
     actor: "Tutora · pelo WhatsApp",
     line: "Bruna, dá pra encaixar a Mel pro banho hoje à tarde?",
     answer: "Manda esse link. Ela escolhe horário, você confirma no painel.",
-    link: "petgres.petsistem.com.br/agendar",
+    link: "petgres.petsistem.com.br",
   },
   {
     when: "10h15",
@@ -61,21 +60,21 @@ const dayMoments = [
   },
 ];
 
-const testimonials = [
+const roleExamples = [
   {
-    name: "Bruna Curcia",
-    role: "Dona, Petgres, São Paulo",
-    text: "Em duas semanas a gente parou de perder horário. Os tutores agendam sozinhos pelo nosso link e a equipe inteira tá no painel.",
+    name: "Dono da loja",
+    role: "Visão comercial",
+    text: "Acompanha agenda, equipe, caixa e assinatura da loja no mesmo painel.",
   },
   {
-    name: "Dr. Rafael Lima",
-    role: "Veterinário, Clínica Vida Animal",
-    text: "O prontuário tá tudo organizado por animal. Abro no celular dentro do consultório. Mudou meu dia.",
+    name: "Veterinário",
+    role: "Visão clínica",
+    text: "Consulta agenda veterinária e prontuário do pet dentro da própria loja.",
   },
   {
-    name: "Carla Mendes",
-    role: "Tosadora, Pet & Cia",
-    text: "O checklist com produto usado é o que faltava. A dona vê o que rolou em cada banho sem precisar perguntar.",
+    name: "Atendente",
+    role: "Visão operacional",
+    text: "Organiza agenda, tutores, pets e checklist dos atendimentos do dia.",
   },
 ];
 
@@ -86,7 +85,7 @@ const faqs = [
   },
   {
     q: "É seguro?",
-    a: "Sim. Rodamos em Supabase e Vercel, as mesmas plataformas que empresas grandes usam. Tem backup diário e separação total entre cada loja.",
+    a: "Sim. O acesso é autenticado, cada loja tem dados isolados e ações protegidas também são validadas no servidor.",
   },
   {
     q: "Como funciona o teste grátis?",
@@ -216,12 +215,12 @@ export default async function MarketingPage() {
                 <ArrowUpRight className="size-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </Link>
               <a
-                href="https://wa.me/5519999990000?text=Quero%20conhecer%20o%20PETSISTEM%20pro%20meu%20petshop"
+                href="https://petgres.petsistem.com.br/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-white/60 px-5 py-3 text-sm font-medium text-zinc-800 transition hover:bg-white"
               >
-                Falar no WhatsApp
+                Ver loja funcionando
               </a>
             </div>
             <p className="mt-5 text-xs text-zinc-500">
@@ -318,20 +317,20 @@ export default async function MarketingPage() {
               </div>
             </div>
             <div className="mt-3 text-right text-[11px] text-zinc-500">
-              Imagem ilustrativa da agenda. O produto real é igualzinho.
+              Exemplo ilustrativo da agenda do sistema.
             </div>
           </div>
         </div>
       </section>
 
-      {/* Logos / prova social discreta */}
+      {/* Product scope — no invented customer logos or claims. */}
       <section className="border-y border-zinc-200/70 bg-white/40 py-8">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-4 text-[13px] text-zinc-500 sm:px-6">
-          <p className="font-medium text-zinc-700">Usam o PETSISTEM:</p>
-          <span>Petgres, São Paulo</span>
-          <span>Vida Animal, São Carlos</span>
-          <span>Pet &amp; Cia, Sorocaba</span>
-          <span>Clínica Quatro Patas, Bauru</span>
+          <p className="font-medium text-zinc-700">Feito para:</p>
+          <span>Banho e tosa</span>
+          <span>Petshops</span>
+          <span>Clínicas veterinárias</span>
+          <span>Equipes com funções separadas</span>
         </div>
       </section>
 
@@ -412,20 +411,19 @@ export default async function MarketingPage() {
         </div>
       </section>
 
-      {/* Quote de destaque, brand-voice direto */}
+      {/* Product promise — no invented testimonial. */}
       <section className="border-y border-zinc-200/70 bg-emerald-800 py-20 text-[#f7f5ef]">
         <div className="mx-auto max-w-4xl px-4 sm:px-6">
           <p
             className="text-balance text-[2rem] font-medium leading-[1.15] tracking-[-0.02em] sm:text-[2.75rem]"
             style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 85" }}
           >
-            “Em duas semanas a gente parou de perder horário.
-            Os tutores agendam sozinhos pelo nosso link e a equipe
-            inteira tá no painel.”
+            Tutor agenda pelo link da loja. Equipe recebe no painel.
+            Atendimento segue organizado até a entrega.
           </p>
           <p className="mt-8 flex items-center gap-3 text-sm text-emerald-100">
             <span className="h-px w-8 bg-emerald-300/60" />
-            Bruna Curcia, dona da Petgres, São Paulo
+            Fluxo completo do agendamento ao acompanhamento
           </p>
         </div>
       </section>
@@ -595,17 +593,17 @@ export default async function MarketingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* Role examples — no invented customer claims. */}
       <section className="border-t border-zinc-200/70 bg-white/50 py-24 sm:py-32">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <h2
             className="max-w-2xl text-balance text-3xl font-medium leading-[1.1] tracking-[-0.02em] text-zinc-950 sm:text-[2.5rem]"
             style={{ fontFamily: "var(--font-bricolage)", fontVariationSettings: "'wdth' 85" }}
           >
-            Quem opera todo dia: dono, atendente e veterinário.
+            Uma tela certa para cada pessoa da equipe.
           </h2>
           <div className="mt-14 grid gap-6 md:grid-cols-3">
-            {testimonials.map((t, i) => (
+            {roleExamples.map((t, i) => (
               <figure
                 key={t.name}
                 className={
@@ -616,16 +614,16 @@ export default async function MarketingPage() {
                 <p className="font-mono text-xs text-zinc-400">
                   · 0{i + 1}
                 </p>
-                <blockquote
+                <p
                   className="mt-4 text-[16.5px] leading-[1.55] text-zinc-900"
                   style={{ fontFamily: "var(--font-bricolage)" }}
                 >
-                  “{t.text}”
-                </blockquote>
-                <figcaption className="mt-7 border-t border-zinc-100 pt-4">
+                  {t.text}
+                </p>
+                <div className="mt-7 border-t border-zinc-100 pt-4">
                   <p className="text-sm font-semibold text-zinc-950">{t.name}</p>
                   <p className="mt-0.5 text-[12.5px] text-zinc-500">{t.role}</p>
-                </figcaption>
+                </div>
               </figure>
             ))}
           </div>
