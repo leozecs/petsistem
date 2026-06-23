@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, LogOut, Menu, ShieldCheck, Store } from "lucide-react";
+import { LogOut, Menu, ShieldCheck, Store } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -163,7 +164,7 @@ function SidebarFooter({ session, variant }: { session: SessionContext; variant:
   );
 }
 
-function SidebarContent({ session, variant }: { session: SessionContext; variant: ShellVariant }) {
+function SidebarContent({ session, variant, mobile = false, onNavigate }: { session: SessionContext; variant: ShellVariant; mobile?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
   const nav = navigationForSession(session);
 
@@ -181,11 +182,11 @@ function SidebarContent({ session, variant }: { session: SessionContext; variant
       className="flex h-full flex-col text-white"
       style={{ backgroundColor: sidebarBg }}
     >
-      <div className="border-b border-white/10 p-5">
+      <div className={cn("border-b border-white/10", mobile ? "p-3" : "p-5")}>
         <SidebarHeader session={session} variant={variant} />
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className={cn("flex-1 p-3", mobile ? "grid auto-rows-min grid-cols-2 content-start gap-2 overflow-visible" : "space-y-1 overflow-y-auto")}>
         {nav.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
@@ -193,8 +194,10 @@ function SidebarContent({ session, variant }: { session: SessionContext; variant
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
-                "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-zinc-300 transition",
+                "flex items-center gap-3 rounded-md px-3 text-sm font-medium text-zinc-300 transition",
+                mobile ? "min-h-12 border border-white/10" : "h-10",
                 "hover:bg-white/10 hover:text-white",
                 active && "bg-white text-zinc-950 hover:bg-white hover:text-zinc-950",
               )}
@@ -220,6 +223,7 @@ export function AppShell({
   session: SessionContext;
   variant?: ShellVariant;
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
     <TooltipProvider>
       <div className="min-h-[100dvh] bg-zinc-100 text-zinc-950">
@@ -227,19 +231,19 @@ export function AppShell({
           <SidebarContent session={session} variant={variant} />
         </aside>
 
-        <div className="lg:pl-72">
-          <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/90 backdrop-blur">
+        <div className="pt-16 lg:pl-72">
+          <header className="fixed inset-x-0 top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur lg:left-72">
             <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
-              <Sheet>
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger
                   render={<Button variant="outline" size="icon" className="rounded-md lg:hidden" />}
                 >
                   <Menu className="size-4" />
                   <span className="sr-only">Abrir menu</span>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-72 border-0 bg-zinc-950 p-0">
+                <SheetContent side="left" className="w-[min(92vw,420px)] border-0 bg-zinc-950 p-0" showCloseButton={false}>
                   <SheetTitle className="sr-only">Navegação</SheetTitle>
-                  <SidebarContent session={session} variant={variant} />
+                  <SidebarContent session={session} variant={variant} mobile onNavigate={() => setMobileMenuOpen(false)} />
                 </SheetContent>
               </Sheet>
 
@@ -248,10 +252,6 @@ export function AppShell({
               </div>
 
               <div className="ml-auto flex items-center gap-2">
-                <Button variant="outline" size="icon" className="rounded-md">
-                  <Bell className="size-4" />
-                  <span className="sr-only">Notificações</span>
-                </Button>
                 <Avatar className="size-9 rounded-md">
                   <AvatarFallback className="rounded-md bg-zinc-950 text-xs text-white">
                     {initials(session.user.fullName)}

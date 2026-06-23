@@ -37,7 +37,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { SectionHeading } from "@/components/app/section-heading";
 import { EmptyState } from "@/components/shared/empty-state";
-import { saveClient, deleteClient } from "@/app/app/clientes/actions";
+import { createClientWithPets, saveClient, deleteClient } from "@/app/app/clientes/actions";
 import { savePet, deletePet } from "@/app/app/pets/actions";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -47,11 +47,7 @@ export type ClientWithPets = ClientRow & { pets: PetRow[] };
 
 const clientFormSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
-  phone: z.string().trim().min(1, "Telefone obrigatório"),
-  whatsapp: z.string().trim().optional(),
-  email: z.union([z.literal(""), z.string().trim().email("Email inválido")]).optional(),
-  address: z.string().trim().optional(),
-  notes: z.string().trim().optional(),
+  whatsapp: z.string().trim().min(8, "WhatsApp obrigatório"),
 });
 type ClientFormValues = z.infer<typeof clientFormSchema>;
 
@@ -84,6 +80,8 @@ export function ClientesPetsManager({
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
+  const [petCount, setPetCount] = useState(0);
+  const [newPets, setNewPets] = useState<Array<{ name: string; breed: string }>>([]);
 
   const [clientDialog, setClientDialog] = useState<{ open: boolean; editing: ClientRow | null }>({
     open: false,
@@ -99,7 +97,7 @@ export function ClientesPetsManager({
 
   const clientForm = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
-    defaultValues: { name: "", phone: "", whatsapp: "", email: "", address: "", notes: "" },
+    defaultValues: { name: "", whatsapp: "" },
   });
 
   const petForm = useForm<PetFormValues>({
@@ -136,18 +134,16 @@ export function ClientesPetsManager({
   }
 
   function openCreateClient() {
-    clientForm.reset({ name: "", phone: "", whatsapp: "", email: "", address: "", notes: "" });
+    clientForm.reset({ name: "", whatsapp: "" });
+    setPetCount(0);
+    setNewPets([]);
     setClientDialog({ open: true, editing: null });
   }
 
   function openEditClient(c: ClientRow) {
     clientForm.reset({
       name: c.name,
-      phone: c.phone,
-      whatsapp: c.whatsapp ?? "",
-      email: c.email ?? "",
-      address: c.address ?? "",
-      notes: c.notes ?? "",
+      whatsapp: c.whatsapp ?? c.phone,
     });
     setClientDialog({ open: true, editing: c });
   }
@@ -185,14 +181,13 @@ export function ClientesPetsManager({
     const fd = new FormData();
     if (clientDialog.editing) fd.set("id", clientDialog.editing.id);
     fd.set("name", values.name);
-    fd.set("phone", values.phone);
-    fd.set("whatsapp", values.whatsapp ?? "");
-    fd.set("email", values.email ?? "");
-    fd.set("address", values.address ?? "");
-    fd.set("notes", values.notes ?? "");
+    fd.set("phone", values.whatsapp);
+    fd.set("whatsapp", values.whatsapp);
 
     startTransition(async () => {
-      const result = await saveClient({ ok: false }, fd);
+      const result = clientDialog.editing
+        ? await saveClient({ ok: false }, fd)
+        : await createClientWithPets({ name: values.name, whatsapp: values.whatsapp, pets: newPets });
       if (result.ok) {
         toast.success(clientDialog.editing ? "Tutor atualizado" : "Tutor cadastrado");
         setClientDialog({ open: false, editing: null });
@@ -468,7 +463,7 @@ export function ClientesPetsManager({
             <DialogDescription>
               {clientDialog.editing
                 ? "Atualize os dados do tutor."
-                : "Cadastre o tutor — depois adicione os pets dele."}
+                : "Cadastre tutor e pets de uma vez."}
             </DialogDescription>
           </DialogHeader>
 
@@ -486,40 +481,30 @@ export function ClientesPetsManager({
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="c_phone">Telefone</Label>
-              <Input id="c_phone" {...clientForm.register("phone")} />
-              {clientForm.formState.errors.phone ? (
-                <p className="text-xs text-rose-600">
-                  {clientForm.formState.errors.phone.message}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="c_whatsapp">WhatsApp</Label>
-              <Input id="c_whatsapp" {...clientForm.register("whatsapp")} />
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="c_email">Email</Label>
-              <Input id="c_email" type="email" {...clientForm.register("email")} />
-              {clientForm.formState.errors.email ? (
+              <Input id="c_whatsapp" inputMode="tel" placeholder="(11) 99999-9999" {...clientForm.register("whatsapp")} />
+              {clientForm.formState.errors.whatsapp ? (
                 <p className="text-xs text-rose-600">
-                  {clientForm.formState.errors.email.message}
+                  {clientForm.formState.errors.whatsapp.message}
                 </p>
               ) : null}
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="c_address">Endereço</Label>
-              <Input id="c_address" {...clientForm.register("address")} />
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="c_notes">Observações</Label>
-              <Textarea id="c_notes" rows={3} {...clientForm.register("notes")} />
-            </div>
+            {!clientDialog.editing ? <>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="c_pet_count">Quantos pets tem?</Label>
+                <Input id="c_pet_count" type="number" inputMode="numeric" min={0} max={10} value={petCount} onChange={(event) => {
+                  const count = Math.min(10, Math.max(0, Number(event.target.value) || 0));
+                  setPetCount(count);
+                  setNewPets((current) => Array.from({ length: count }, (_, index) => current[index] ?? { name: "", breed: "" }));
+                }} />
+              </div>
+              {newPets.map((pet, index) => <div key={index} className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 sm:col-span-2 sm:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor={`new_pet_name_${index}`}>Nome do pet {index + 1}</Label><Input id={`new_pet_name_${index}`} value={pet.name} onChange={(event) => setNewPets((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} /></div>
+                <div className="space-y-2"><Label htmlFor={`new_pet_breed_${index}`}>Raça</Label><Input id={`new_pet_breed_${index}`} value={pet.breed} onChange={(event) => setNewPets((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, breed: event.target.value } : item))} /></div>
+              </div>)}
+            </> : null}
 
             <DialogFooter className="sm:col-span-2">
               <Button
@@ -527,7 +512,7 @@ export function ClientesPetsManager({
                 variant="outline"
                 className="rounded-md border-zinc-300 bg-white"
                 onClick={() => setClientDialog({ open: false, editing: null })}
-                disabled={pending}
+                disabled={pending || (!clientDialog.editing && newPets.some((pet) => !pet.name.trim() || !pet.breed.trim()))}
               >
                 Cancelar
               </Button>
