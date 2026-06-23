@@ -20,6 +20,7 @@ import {
   uploadStepPhoto,
 } from "@/app/app/checklist/actions";
 import { cn } from "@/lib/utils";
+import { ChecklistConfigDialog, type ChecklistTemplate } from "@/components/checklist/checklist-config-dialog";
 
 type Status = "confirmed" | "checked_in" | "in_progress";
 
@@ -56,15 +57,16 @@ const HOUR_FMT = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
 });
 
-export function ChecklistDayView({ cards }: { cards: ChecklistCard[] }) {
+export function ChecklistDayView({ cards, templates = [], canConfigure = false }: { cards: ChecklistCard[]; templates?: ChecklistTemplate[]; canConfigure?: boolean }) {
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Checklist do dia</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Checklist do dia</h1>
         <p className="mt-1 text-sm text-zinc-600">
           Atendimentos de hoje com status agendado, chegou ou em atendimento. Clique no card pra
           expandir e marcar as etapas. Foto opcional por etapa.
-        </p>
+        </p></div>
+        {canConfigure ? <ChecklistConfigDialog templates={templates} /> : null}
       </div>
 
       {cards.length === 0 ? (

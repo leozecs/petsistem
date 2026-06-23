@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 
 const KIND = z.enum(["revenue", "expense"]);
@@ -97,12 +98,8 @@ export async function updateCategory(input: z.infer<typeof updateSchema>): Promi
   return { ok: true };
 }
 
-/**
- * Soft delete: marca active=false em vez de remover. Preserva FK em expenses/
- * revenue_items históricos (relatório de mês anterior segue mostrando categoria).
- */
-export async function archiveCategory(input: { id: string }): Promise<Result> {
-  const { membership } = await requireTenant();
+export async function deleteCategory(input: { id: string }): Promise<Result> {
+  const { session, membership } = await requireTenant();
   if (!hasRole(membership, ["owner"])) return { ok: false, error: "Sem permissão." };
 
   const parsed = idSchema.safeParse(input);
@@ -111,44 +108,32 @@ export async function archiveCategory(input: { id: string }): Promise<Result> {
   const supabase = await createClient();
   if (!supabase) return { ok: false, error: "Supabase indisponível." };
 
+  const { data: category, error: findError } = await supabase
+    .from("categories")
+    .select("id, name, kind")
+    .eq("id", parsed.data.id)
+    .eq("petshop_id", membership.petshopId)
+    .maybeSingle();
+
+  if (findError) return { ok: false, error: findError.message };
+  if (!category) return { ok: false, error: "Categoria não encontrada." };
+
   const { error } = await supabase
     .from("categories")
-    .update({ active: false })
-    .eq("id", parsed.data.id)
+    .delete()
+    .eq("id", category.id)
     .eq("petshop_id", membership.petshopId);
 
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/app/configuracoes/categorias");
-  revalidatePath("/app/financeiro");
-  return { ok: true };
-}
-
-export async function restoreCategory(input: { id: string }): Promise<Result> {
-  const { membership } = await requireTenant();
-  if (!hasRole(membership, ["owner"])) return { ok: false, error: "Sem permissão." };
-
-  const parsed = idSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "ID inválido." };
-
-  const supabase = await createClient();
-  if (!supabase) return { ok: false, error: "Supabase indisponível." };
-
-  const { error } = await supabase
-    .from("categories")
-    .update({ active: true })
-    .eq("id", parsed.data.id)
-    .eq("petshop_id", membership.petshopId);
-
-  if (error) {
-    if (error.code === "23505") {
-      return {
-        ok: false,
-        error: "Já existe outra categoria ativa com esse nome. Renomeie primeiro.",
-      };
-    }
-    return { ok: false, error: error.message };
-  }
+  await createAdminClient()?.from("audit_logs").insert({
+    petshop_id: membership.petshopId,
+    actor_id: session.user.id,
+    action: "category.deleted",
+    entity_table: "categories",
+    entity_id: category.id,
+    metadata: { name: category.name, kind: category.kind },
+  });
 
   revalidatePath("/app/configuracoes/categorias");
   revalidatePath("/app/financeiro");

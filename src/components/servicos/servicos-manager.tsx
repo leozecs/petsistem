@@ -241,6 +241,7 @@ export function ServicosManager({
             <div className="space-y-2">
               <Label htmlFor="area">Área</Label>
               <Select
+                items={{ grooming: "Banho e Tosa", veterinary: "Veterinária" }}
                 value={form.watch("area")}
                 onValueChange={(v) => {
                   const value = String(v ?? "");

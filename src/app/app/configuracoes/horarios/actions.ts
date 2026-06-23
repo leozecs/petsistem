@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
+import { databaseScheduleWindow } from "@/lib/calendar/schedule-time";
 
 const weekdayEntrySchema = z.object({
   weekday: z.number().int().min(0).max(6),
@@ -79,14 +80,17 @@ export async function saveSchedules(
     .eq("petshop_id", membership.petshopId);
   if (delErr) return { ok: false, error: delErr.message };
 
-  const rows = parsed.data.entries.map((e) => ({
-    petshop_id: membership.petshopId,
-    calendar_id: parsed.data.calendar_id,
-    weekday: e.weekday,
-    starts_at: `${e.starts_at}:00`,
-    ends_at: e.open ? `${e.ends_at}:00` : `${e.starts_at}:00:01`,
-    active: e.open,
-  }));
+  const rows = parsed.data.entries.map((e) => {
+    const window = databaseScheduleWindow(e.starts_at, e.ends_at, e.open);
+    return {
+      petshop_id: membership.petshopId,
+      calendar_id: parsed.data.calendar_id,
+      weekday: e.weekday,
+      starts_at: window.startsAt,
+      ends_at: window.endsAt,
+      active: e.open,
+    };
+  });
 
   // Closed-day rows need a non-degenerate range to satisfy the
   // `starts_at < ends_at` CHECK constraint; we use +1 second. The engine ignores

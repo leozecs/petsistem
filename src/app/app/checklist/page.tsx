@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { ChecklistDayView, type ChecklistCard } from "@/components/checklist/checklist-day-view";
+import type { ChecklistTemplate } from "@/components/checklist/checklist-config-dialog";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,6 +32,17 @@ export default async function ChecklistPage() {
   if (!supabase) redirect("/login?error=supabase-not-configured");
 
   const areas = allowedAreas(membership.role);
+  const canConfigure = hasRole(membership, ["owner", "attendant"]);
+
+  const [{ data: configurableServices }, { data: configurableSteps }] = await Promise.all([
+    supabase.from("services").select("id, name, area").eq("petshop_id", membership.petshopId).in("area", areas).eq("active", true).is("deleted_at", null).order("name"),
+    supabase.from("checklist_steps").select("id, service_id, label, position").eq("petshop_id", membership.petshopId).eq("active", true).not("service_id", "is", null).order("position"),
+  ]);
+  const templates: ChecklistTemplate[] = (configurableServices ?? []).map((service) => ({
+    serviceId: service.id,
+    serviceName: service.name,
+    steps: (configurableSteps ?? []).filter((step) => step.service_id === service.id).map((step) => ({ id: step.id, label: step.label, position: step.position })),
+  }));
 
   // Janela hoje em TZ petshop
   const timeZone = membership.petshop.timezone;
@@ -69,7 +81,7 @@ export default async function ChecklistPage() {
   );
 
   if (allAppts.length === 0) {
-    return <ChecklistDayView cards={[]} />;
+    return <ChecklistDayView cards={[]} templates={templates} canConfigure={canConfigure} />;
   }
 
   const serviceIds = Array.from(
@@ -178,5 +190,5 @@ export default async function ChecklistPage() {
     };
   });
 
-  return <ChecklistDayView cards={cards} />;
+  return <ChecklistDayView cards={cards} templates={templates} canConfigure={canConfigure} />;
 }

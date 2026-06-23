@@ -1,21 +1,16 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
-  Calendar,
-  CalendarRange,
-  CalendarClock,
-  CircleDollarSign,
-  Clock,
   Plus,
-  Receipt,
   Trash2,
   TrendingDown,
   TrendingUp,
-  Wallet,
 } from "lucide-react";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,18 +39,9 @@ import {
 import { cn } from "@/lib/utils";
 
 type PaymentMethod = "pix" | "cash" | "card" | "transfer" | "other";
+const PAYMENT_METHOD_ITEMS = { pix: "Pix", cash: "Dinheiro", card: "Cartão", transfer: "Transferência", other: "Outro" };
 
-export type Kpis = {
-  receitaHoje: number;
-  receitaSemana: number;
-  receitaMes: number;
-  despesaMes: number;
-  saldoMes: number;
-  ticketMedio: number;
-  aReceber: number;
-  aPagar: number;
-  atendimentosPagosMes: number;
-};
+export type FinanceChartPoint = { month: string; revenueCents: number; expenseCents: number; profitCents: number };
 
 export type Movement = {
   id: string;
@@ -102,18 +88,25 @@ function pmLabel(pm: string | null): string {
 }
 
 export function FinanceiroView({
-  kpis,
+  chart,
   movements,
   categories,
   todayIso,
   canDelete,
+  selectedYear,
+  selectedSemester,
+  availableYears,
 }: {
-  kpis: Kpis;
+  chart: FinanceChartPoint[];
   movements: Movement[];
   categories: CategoryOption[];
   todayIso: string;
   canDelete: boolean;
+  selectedYear: number;
+  selectedSemester: 1 | 2;
+  availableYears: number[];
 }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "revenue" | "expense">("all");
 
   const filtered = useMemo(
@@ -127,8 +120,7 @@ export function FinanceiroView({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Financeiro</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Receitas, despesas e fluxo do mês corrente. Receita de atendimento entra automática ao
-            finalizar o agendamento. O resto você lança aqui.
+            Faturamento, despesas e lucro do semestre. Receitas de atendimento entram automaticamente.
           </p>
         </div>
         <div className="flex gap-2">
@@ -143,66 +135,23 @@ export function FinanceiroView({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          icon={Calendar}
-          tone="emerald"
-          label="Receita hoje"
-          value={brl(kpis.receitaHoje)}
-        />
-        <KpiCard
-          icon={CalendarRange}
-          tone="emerald"
-          label="Receita da semana"
-          value={brl(kpis.receitaSemana)}
-        />
-        <KpiCard
-          icon={CalendarClock}
-          tone="emerald"
-          label="Receita do mês"
-          value={brl(kpis.receitaMes)}
-          sub={`${kpis.atendimentosPagosMes} atend. pagos`}
-        />
-        <KpiCard
-          icon={CircleDollarSign}
-          tone="emerald"
-          label="Ticket médio"
-          value={brl(kpis.ticketMedio)}
-          sub="por atendimento pago"
-        />
-        <KpiCard
-          icon={TrendingDown}
-          tone="rose"
-          label="Despesa paga no mês"
-          value={brl(kpis.despesaMes)}
-        />
-        <KpiCard
-          icon={Clock}
-          tone="amber"
-          label="A pagar"
-          value={brl(kpis.aPagar)}
-          sub="despesas em aberto"
-        />
-        <KpiCard
-          icon={Receipt}
-          tone="amber"
-          label="A receber"
-          value={brl(kpis.aReceber)}
-          sub="atendimentos sem pgto"
-        />
-        <KpiCard
-          icon={Wallet}
-          tone={kpis.saldoMes >= 0 ? "emerald" : "rose"}
-          label="Saldo do mês"
-          value={brl(kpis.saldoMes)}
-          sub="receita − despesa paga"
-        />
-      </div>
+      <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
+        <CardContent className="p-5">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-sm font-semibold text-zinc-900">Resultado semestral</p><p className="text-xs text-zinc-500">Valores mensais em reais</p></div>
+            <div className="flex gap-2">
+              <Select items={Object.fromEntries(availableYears.map((year) => [String(year), String(year)]))} value={String(selectedYear)} onValueChange={(value) => router.push(`/app/financeiro?year=${value}&semester=${selectedSemester}`)}><SelectTrigger className="w-24"><SelectValue /></SelectTrigger><SelectContent>{availableYears.map((year) => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent></Select>
+              <Select items={{ "1": "1º semestre", "2": "2º semestre" }} value={String(selectedSemester)} onValueChange={(value) => router.push(`/app/financeiro?year=${selectedYear}&semester=${value}`)}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1º semestre</SelectItem><SelectItem value="2">2º semestre</SelectItem></SelectContent></Select>
+            </div>
+          </div>
+          <div className="h-80 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={chart} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} /><XAxis dataKey="month" tick={{ fill: "#71717a", fontSize: 12 }} axisLine={false} tickLine={false} /><YAxis tickFormatter={(value) => `R$ ${Math.round(Number(value) / 100)}`} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} width={72} /><Tooltip formatter={(value) => brl(Number(value))} /><Legend /><Line type="monotone" dataKey="revenueCents" name="Faturamento" stroke="#059669" strokeWidth={2.5} dot={{ r: 3 }} /><Line type="monotone" dataKey="expenseCents" name="Despesas" stroke="#e11d48" strokeWidth={2.5} dot={{ r: 3 }} /><Line type="monotone" dataKey="profitCents" name="Lucro" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3 }} /></LineChart></ResponsiveContainer></div>
+        </CardContent>
+      </Card>
 
       <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
         <CardContent className="p-0">
           <div className="flex items-center justify-between border-b border-zinc-200 p-4">
-            <p className="text-sm font-semibold text-zinc-900">Movimentações do mês</p>
+            <p className="text-sm font-semibold text-zinc-900">Movimentações do semestre</p>
             <div className="inline-flex rounded-md border border-zinc-200 bg-zinc-50 p-0.5">
               {(
                 [
@@ -241,47 +190,6 @@ export function FinanceiroView({
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-type Tone = "emerald" | "rose" | "amber";
-
-function KpiCard({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  tone: Tone;
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  const toneClasses: Record<Tone, string> = {
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    rose: "bg-rose-50 text-rose-700 border-rose-100",
-    amber: "bg-amber-50 text-amber-800 border-amber-100",
-  };
-  return (
-    <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2.5">
-          <div
-            className={cn(
-              "flex size-9 items-center justify-center rounded-lg border",
-              toneClasses[tone],
-            )}
-          >
-            <Icon className="size-4" />
-          </div>
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
-        </div>
-        <p className="mt-3 font-mono text-xl font-semibold tabular-nums text-zinc-900">{value}</p>
-        {sub ? <p className="mt-0.5 text-[11px] text-zinc-500">{sub}</p> : null}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -443,6 +351,7 @@ function AddRevenueDialog({
             <div className="space-y-1.5">
               <Label>Pagamento</Label>
               <Select
+                items={PAYMENT_METHOD_ITEMS}
                 value={form.payment_method}
                 onValueChange={(v) => setForm({ ...form, payment_method: v as PaymentMethod })}
               >
@@ -461,6 +370,7 @@ function AddRevenueDialog({
             <div className="space-y-1.5">
               <Label>Categoria</Label>
               <Select
+                items={{ none: "Sem categoria", ...Object.fromEntries(categories.map((category) => [category.id, category.name])) }}
                 value={form.category_id || "none"}
                 onValueChange={(v) =>
                   setForm({ ...form, category_id: v === "none" || v == null ? "" : v })
@@ -596,6 +506,7 @@ function AddExpenseDialog({
             <div className="space-y-1.5">
               <Label>Categoria</Label>
               <Select
+                items={{ none: "Sem categoria", ...Object.fromEntries(categories.map((category) => [category.id, category.name])) }}
                 value={form.category_id || "none"}
                 onValueChange={(v) =>
                   setForm({ ...form, category_id: v === "none" || v == null ? "" : v })
@@ -617,6 +528,7 @@ function AddExpenseDialog({
             <div className="space-y-1.5">
               <Label>Pagamento</Label>
               <Select
+                items={PAYMENT_METHOD_ITEMS}
                 value={form.payment_method}
                 onValueChange={(v) => setForm({ ...form, payment_method: v as PaymentMethod })}
                 disabled={!form.paid}
