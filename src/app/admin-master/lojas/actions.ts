@@ -98,7 +98,28 @@ export async function createPetshopWithOwner(
     };
   }
 
-  // 1) Auth user
+  // 1a) Preflight: bloqueia se o email já existe em public.users.
+  // Sem essa checagem, o auth.createUser pode retornar um id novo cujo email
+  // colide com a UNIQUE de public.users.email — o insert do profile falha com
+  // "duplicate", o catch atual swallowa o erro, e o membership insere com um
+  // user_id que NÃO existe em public.users → FK violation
+  // `memberships_user_id_fkey`. Mais seguro impedir a colisão antes.
+  const { data: existingProfile } = await admin
+    .from("users")
+    .select("id")
+    .eq("email", parsed.data.ownerEmail)
+    .maybeSingle();
+  if (existingProfile) {
+    return {
+      ok: false,
+      fieldErrors: {
+        ownerEmail:
+          "Já existe um usuário com esse email. Use outro pro dono da loja.",
+      },
+    };
+  }
+
+  // 1b) Auth user
   const { data: authData, error: authErr } = await admin.auth.admin.createUser({
     email: parsed.data.ownerEmail,
     password: parsed.data.ownerPassword,
@@ -106,7 +127,13 @@ export async function createPetshopWithOwner(
     user_metadata: { full_name: parsed.data.ownerName },
   });
   if (authErr || !authData.user) {
-    if (authErr?.message?.toLowerCase().includes("already")) {
+    const msg = authErr?.message?.toLowerCase() ?? "";
+    if (
+      msg.includes("already") ||
+      msg.includes("registered") ||
+      msg.includes("exists") ||
+      msg.includes("duplicate")
+    ) {
       return {
         ok: false,
         fieldErrors: {
@@ -125,15 +152,25 @@ export async function createPetshopWithOwner(
     }
   };
 
-  // 2) users profile
+  // 2) users profile — agora qualquer erro força rollback do auth user.
+  // O preflight acima já cobriu o caso de duplicate por email; se ainda assim
+  // duplicar (race condition), tratar como falha real em vez de swallow.
   const { error: profErr } = await admin.from("users").insert({
     id: ownerId,
     email: parsed.data.ownerEmail,
     full_name: parsed.data.ownerName,
     global_role: "user",
   });
-  if (profErr && !profErr.message.includes("duplicate")) {
+  if (profErr) {
     await rollbackAuth();
+    if (profErr.message.toLowerCase().includes("duplicate")) {
+      return {
+        ok: false,
+        fieldErrors: {
+          ownerEmail: "Email já cadastrado em outro usuário. Tente outro.",
+        },
+      };
+    }
     return { ok: false, error: profErr.message };
   }
 
