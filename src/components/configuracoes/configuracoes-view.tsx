@@ -29,14 +29,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionHeading } from "@/components/app/section-heading";
 import {
+  completePetshopLogoUpload,
+  preparePetshopLogoUpload,
   removePetshopLogo,
   updatePetshopGeneral,
   updatePetshopOperations,
   updatePetshopVisual,
-  uploadPetshopLogo,
 } from "@/app/app/configuracoes/actions";
 import { contrastWithWhite, MIN_AA_CONTRAST } from "@/lib/color";
 import { PETSHOP_TIME_ZONES } from "@/lib/timezones";
+import {
+  getPetshopLogoExtension,
+  MAX_PETSHOP_LOGO_BYTES,
+  PETSHOP_LOGO_BUCKET,
+} from "@/lib/storage/petshop-logo";
 
 type Props = {
   petshop: {
@@ -137,25 +143,51 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > MAX_PETSHOP_LOGO_BYTES) {
       toast.error("Imagem maior que 2MB. Reduza antes de enviar.");
+      e.target.value = "";
+      return;
+    }
+    if (!getPetshopLogoExtension(file.type)) {
+      toast.error("Formato não suportado. Use PNG, JPG ou WEBP.");
+      e.target.value = "";
       return;
     }
     const reader = new FileReader();
     reader.onload = (ev) => setLogoPreview(String(ev.target?.result ?? ""));
     reader.readAsDataURL(file);
 
-    const fd = new FormData();
-    fd.set("file", file);
     startTransition(async () => {
-      const result = await uploadPetshopLogo(fd);
-      if (result.ok) {
+      try {
+        const prepared = await preparePetshopLogoUpload({
+          fileSize: file.size,
+          mimeType: file.type,
+        });
+        if (!prepared.ok) throw new Error(prepared.error);
+
+        const { createClient } = await import("@/lib/supabase/browser");
+        const supabase = createClient();
+        const { error: uploadError } = await supabase.storage
+          .from(PETSHOP_LOGO_BUCKET)
+          .uploadToSignedUrl(prepared.path, prepared.token, file, {
+            cacheControl: "31536000",
+            contentType: file.type,
+          });
+        if (uploadError) {
+          throw new Error("Não foi possível enviar a logo. Tente novamente.");
+        }
+
+        const result = await completePetshopLogoUpload({ path: prepared.path });
+        if (!result.ok) throw new Error(result.error);
+
         setLogoPreview(result.url);
         toast.success("Logo atualizada");
         router.refresh();
-      } else {
-        toast.error(result.error ?? "Erro no upload");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Erro no upload");
         setLogoPreview(petshop.logoUrl);
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     });
   }
@@ -446,7 +478,7 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
               </div>
               <p className="text-xs text-zinc-500">
                 Aparece no painel interno e na landing pública do seu subdomínio.
-                Tamanho máximo: 2MB. Formatos: PNG, JPG, WEBP ou SVG.
+                Tamanho máximo: 2MB. Formatos: PNG, JPG ou WEBP.
               </p>
 
               <div className="flex flex-wrap items-center gap-4">
@@ -470,7 +502,7 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    accept="image/png,image/jpeg,image/webp"
                     onChange={handleFileChange}
                     className="hidden"
                   />
