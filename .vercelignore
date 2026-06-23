@@ -1,0 +1,16 @@
+.git
+.next
+node_modules
+.vercel
+.env*
+
+.agents
+.claude
+.codex
+.pnpm-store
+.tmp-qa
+
+*.log
+*.pid
+*.zip
+tsconfig.tsbuildinfo
