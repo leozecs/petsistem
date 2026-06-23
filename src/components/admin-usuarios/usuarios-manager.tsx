@@ -95,6 +95,8 @@ export function UsuariosManager({
     open: false,
     password: "",
   });
+  const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [pending, startTransition] = useTransition();
 
   // Persist search in URL — debounced. Pressing Enter submits immediately.
@@ -162,18 +164,23 @@ export function UsuariosManager({
       toast.error("Usuários Admin Master não podem ser excluídos por esta tela.");
       return;
     }
-    if (
-      !confirm(
-        `Excluir ${user.email}?\n\nO login e as memberships serão removidos. Os dados operacionais e de auditoria serão preservados.`,
-      )
-    )
-      return;
+    setDeleteTarget(user);
+    setDeleteConfirmInput("");
+  }
 
+  function confirmPermanentDelete() {
+    if (!deleteTarget) return;
+    if (deleteConfirmInput.trim().toLowerCase() !== deleteTarget.email.toLowerCase()) {
+      toast.error("Email digitado não bate. Confirme novamente.");
+      return;
+    }
     startTransition(async () => {
-      const result = await deleteUser(user.id);
+      const result = await deleteUser(deleteTarget.id);
       if (result.ok) {
         if (result.warning) toast.warning(result.warning);
-        else toast.success("Usuário excluído");
+        else toast.success(`Usuário ${deleteTarget.email} excluído.`);
+        setDeleteTarget(null);
+        setDeleteConfirmInput("");
         setDrawerUser(null);
         router.refresh();
       } else {
@@ -476,6 +483,73 @@ export function UsuariosManager({
             >
               <User className="size-4" />
               Já anotei
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Excluir usuário — confirmação por email digitado */}
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteTarget(null);
+            setDeleteConfirmInput("");
+          }
+        }}
+      >
+        <DialogContent className="rounded-xl border-zinc-200 bg-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-rose-700">Excluir usuário</DialogTitle>
+            <DialogDescription>
+              O login será removido do Auth e todas as memberships ficam
+              suspensas. Histórico operacional e auditoria são preservados.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget ? (
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-700">
+                Pra confirmar, digite o email:{" "}
+                <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-900">
+                  {deleteTarget.email}
+                </code>
+              </p>
+              <Input
+                autoFocus
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder={deleteTarget.email}
+                disabled={pending}
+                className="font-mono"
+              />
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteConfirmInput("");
+              }}
+              disabled={pending}
+              className="rounded-md border-zinc-300 bg-white"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmPermanentDelete}
+              disabled={
+                pending ||
+                !deleteTarget ||
+                deleteConfirmInput.trim().toLowerCase() !==
+                  deleteTarget.email.toLowerCase()
+              }
+              className="rounded-md bg-rose-700 text-white hover:bg-rose-800 disabled:opacity-60"
+            >
+              <Trash2 className="size-4" />
+              {pending ? "Excluindo…" : "Excluir agora"}
             </Button>
           </DialogFooter>
         </DialogContent>
