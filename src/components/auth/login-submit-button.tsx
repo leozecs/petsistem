@@ -14,7 +14,7 @@ export function LoginSubmitButton() {
       aria-busy={pending}
       className={cn(
         buttonVariants(),
-        "h-11 w-full rounded-md bg-zinc-950 text-white transition hover:bg-zinc-800 disabled:opacity-90",
+        "h-12 w-full rounded-lg bg-emerald-800 text-base font-semibold text-[#f7f5ef] shadow-sm transition hover:bg-emerald-900 disabled:opacity-80",
       )}
     >
       {pending ? (

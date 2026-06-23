@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { LockKeyhole } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowUpRight, PawPrint } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/auth-actions";
@@ -31,87 +30,170 @@ export function LoginScreen({
 }) {
   const isRateLimited =
     error === "rate-limited" && until && new Date(until).getTime() > Date.now();
-  // Pula a mensagem genérica quando estamos exibindo o banner de countdown.
   const errorMessage =
     error && !isRateLimited
-      ? errorMessages[error] ?? "Nao foi possivel concluir o login."
+      ? errorMessages[error] ?? "Não foi possível concluir o login."
       : null;
 
   return (
-    <main className="grid min-h-[100dvh] bg-zinc-100 text-zinc-950 lg:grid-cols-[1fr_0.9fr]">
-      <section className="flex items-center px-4 py-8 sm:px-6 lg:px-12">
+    <main
+      className="grid min-h-[100dvh] bg-[#f7f5ef] text-zinc-950 lg:grid-cols-[1.1fr_1fr]"
+      style={{ fontFamily: "var(--font-hanken), ui-sans-serif, system-ui" }}
+    >
+      {/* FORMULÁRIO */}
+      <section className="flex items-center px-5 py-10 sm:px-8 lg:px-16">
         <div className="mx-auto w-full max-w-md">
-          <div className="mb-8 flex items-center gap-3">
-            <div className="flex h-10 w-40 items-center overflow-hidden">
-              <PetsistemLogo tone="dark" className="w-40" priority />
+          <Link href="/" className="mb-10 inline-flex items-center gap-2">
+            <div className="flex h-7 w-32 items-center overflow-hidden">
+              <PetsistemLogo tone="dark" className="w-32" priority />
             </div>
-            <p className="text-xs text-zinc-500">Acesso administrativo</p>
-          </div>
+          </Link>
 
-          <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
-            <CardContent className="p-6 sm:p-8">
-              <div className="flex size-12 items-center justify-center rounded-lg bg-zinc-950 text-white">
-                <LockKeyhole className="size-5" />
-              </div>
-              <h1 className="mt-6 text-3xl font-semibold tracking-tight">Entrar no PETSISTEM</h1>
-              <p className="mt-3 text-sm leading-6 text-zinc-600">
-                Use seu acesso de Admin Master, dono, atendente ou veterinário para entrar no painel.
-              </p>
-              {errorMessage ? (
-                <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                  {errorMessage}
-                </div>
-              ) : null}
-              {isRateLimited && until ? <RateLimitBanner untilIso={until} /> : null}
-              <form action={signIn} className="mt-8 space-y-5">
-                <fieldset disabled={Boolean(isRateLimited)} className="space-y-5 disabled:opacity-60">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      placeholder="seu@email.com"
-                      className="rounded-md"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      autoComplete="current-password"
-                      placeholder="Sua senha"
-                      className="rounded-md"
-                      required
-                    />
-                  </div>
-                  <LoginSubmitButton />
-                </fieldset>
-              </form>
-              <div className="mt-5 rounded-lg bg-zinc-50 p-4 text-sm leading-6 text-zinc-600">
-                Ao configurar o Supabase, a rota <code className="font-mono text-zinc-950">/api/setup/admin-master</code>{" "}
-                cria ou atualiza este usuário como Admin Master.
-              </div>
-            </CardContent>
-          </Card>
+          <p
+            className="inline-flex items-center gap-2 rounded-full border border-emerald-800/15 bg-emerald-800/[0.06] px-3 py-1 text-[11px] font-medium text-emerald-900"
+            style={{ fontFamily: "var(--font-hanken)" }}
+          >
+            <span className="size-1.5 rounded-full bg-emerald-800" />
+            Acesso interno
+          </p>
 
-          <div className="mt-5 text-center text-sm text-zinc-600">
-            Quer testar um agendamento? Acesse{" "}
-            <Link href="/loja/petgres" className="font-semibold text-zinc-950 underline underline-offset-4">
-              /loja/petgres
+          <h1
+            className="mt-5 text-[2.25rem] font-medium leading-[1.05] tracking-[-0.025em] text-zinc-950 sm:text-[2.75rem]"
+            style={{
+              fontFamily: "var(--font-bricolage)",
+              fontVariationSettings: "'wdth' 90",
+            }}
+          >
+            Entrar no
+            <br />
+            <span
+              className="italic text-emerald-800"
+              style={{ fontVariationSettings: "'wdth' 78" }}
+            >
+              PETSISTEM.
+            </span>
+          </h1>
+
+          <p className="mt-4 max-w-sm text-[15px] leading-6 text-zinc-700">
+            Use seu acesso de Admin Master, dono, atendente ou veterinário pra
+            entrar no painel da sua loja.
+          </p>
+
+          {errorMessage ? (
+            <div
+              role="alert"
+              className="mt-7 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3.5 text-sm leading-5 text-rose-800"
+            >
+              <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-rose-500" />
+              <span>{errorMessage}</span>
+            </div>
+          ) : null}
+          {isRateLimited && until ? <RateLimitBanner untilIso={until} /> : null}
+
+          <form action={signIn} className="mt-7 space-y-4">
+            <fieldset
+              disabled={Boolean(isRateLimited)}
+              className="space-y-4 disabled:opacity-60"
+            >
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-[13px] font-medium text-zinc-800">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="seu@email.com"
+                  className="h-12 rounded-lg border-zinc-300 bg-white px-4 text-[15px] shadow-sm focus-visible:border-emerald-700 focus-visible:ring-emerald-700/15"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="password"
+                  className="text-[13px] font-medium text-zinc-800"
+                >
+                  Senha
+                </Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  className="h-12 rounded-lg border-zinc-300 bg-white px-4 text-[15px] shadow-sm focus-visible:border-emerald-700 focus-visible:ring-emerald-700/15"
+                  required
+                />
+              </div>
+              <LoginSubmitButton />
+            </fieldset>
+          </form>
+
+          <div className="mt-8 border-t border-zinc-200 pt-6 text-[13px] leading-6 text-zinc-600">
+            Quer testar um agendamento sem entrar?{" "}
+            <Link
+              href="/loja/petgres"
+              className="inline-flex items-center gap-0.5 font-semibold text-emerald-800 hover:underline"
+            >
+              Ver loja de exemplo
+              <ArrowUpRight className="size-3.5" />
             </Link>
-            .
           </div>
         </div>
       </section>
-      <section className="relative hidden overflow-hidden bg-black text-white lg:block">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(255,255,255,0.12),transparent_34%)]" />
-        <div className="relative flex h-full min-h-[100dvh] items-center justify-center px-16">
-          <PetsistemLogo tone="light" className="w-full max-w-xl drop-shadow-[0_24px_60px_rgba(255,255,255,0.08)]" priority />
+
+      {/* PAINEL DA MARCA */}
+      <section className="relative hidden overflow-hidden bg-emerald-800 text-[#f7f5ef] lg:block">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-24 -top-24 h-[360px] w-[360px] rounded-full bg-emerald-700/40 blur-[80px]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-32 bottom-0 h-[420px] w-[420px] rounded-full bg-emerald-900/50 blur-[100px]"
+        />
+
+        <div className="relative flex h-full min-h-[100dvh] flex-col justify-between p-14">
+          <div className="flex items-center gap-3">
+            <div className="flex h-7 w-32 items-center overflow-hidden">
+              <PetsistemLogo tone="light" className="w-32" priority />
+            </div>
+            <span className="rounded-full border border-emerald-100/30 bg-emerald-100/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-100">
+              Painel
+            </span>
+          </div>
+
+          <div className="max-w-md space-y-7">
+            <PawPrint
+              className="size-10 text-emerald-300/70"
+              strokeWidth={1.5}
+            />
+            <p
+              className="text-[2.5rem] font-medium leading-[1.05] tracking-[-0.02em]"
+              style={{
+                fontFamily: "var(--font-bricolage)",
+                fontVariationSettings: "'wdth' 85",
+              }}
+            >
+              O dia do seu petshop{" "}
+              <span
+                className="italic text-emerald-200"
+                style={{ fontVariationSettings: "'wdth' 78" }}
+              >
+                resolvido aqui dentro.
+              </span>
+            </p>
+            <p className="max-w-sm text-[15px] leading-6 text-emerald-100/85">
+              Agenda online, painel pra equipe, prontuário do veterinário e
+              caixa do dia somando sozinho. Tudo num lugar só.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-[12px] text-emerald-100/70">
+            <span className="h-px w-8 bg-emerald-300/40" />
+            Petshop e clínica veterinária, no Brasil.
+          </div>
         </div>
       </section>
     </main>
