@@ -85,6 +85,15 @@ export async function createVeterinarianWithLogin(
     return { ok: false, error: "Service role do Supabase não configurado." };
   }
 
+  const { data: existingProfile } = await admin
+    .from("users")
+    .select("id")
+    .eq("email", parsed.data.email)
+    .maybeSingle();
+  if (existingProfile) {
+    return { ok: false, fieldErrors: { email: "Já existe um usuário com esse email." } };
+  }
+
   const { data: created, error: authErr } = await admin.auth.admin.createUser({
     email: parsed.data.email,
     password: parsed.data.password,
@@ -104,8 +113,10 @@ export async function createVeterinarianWithLogin(
   }
   const newUserId = created.user.id;
 
-  async function rollbackAuth() {
+  async function rollbackProvisioning() {
     try {
+      await admin!.from("memberships").delete().eq("user_id", newUserId).eq("petshop_id", membership.petshopId);
+      await admin!.from("users").delete().eq("id", newUserId);
       await admin!.auth.admin.deleteUser(newUserId);
     } catch {
       /* best-effort */
@@ -119,8 +130,8 @@ export async function createVeterinarianWithLogin(
     phone: parsed.data.phone ?? null,
     global_role: "user",
   });
-  if (profileErr && !profileErr.message.includes("duplicate")) {
-    await rollbackAuth();
+  if (profileErr) {
+    await rollbackProvisioning();
     return { ok: false, error: profileErr.message };
   }
 
@@ -132,16 +143,11 @@ export async function createVeterinarianWithLogin(
     created_by: session.user.id,
   });
   if (memErr) {
-    await rollbackAuth();
+    await rollbackProvisioning();
     return { ok: false, error: memErr.message };
   }
 
-  const supabase = await createClient();
-  if (!supabase) {
-    await rollbackAuth();
-    return { ok: false, error: "Supabase indisponível." };
-  }
-  const { error: vetErr } = await supabase.from("veterinarians").insert({
+  const { data: veterinarian, error: vetErr } = await admin.from("veterinarians").insert({
     petshop_id: membership.petshopId,
     name: parsed.data.name,
     crmv: parsed.data.crmv,
@@ -151,11 +157,13 @@ export async function createVeterinarianWithLogin(
     active: true,
     user_id: newUserId,
     created_by: session.user.id,
-  });
+  }).select("id").single();
   if (vetErr) {
-    await rollbackAuth();
+    await rollbackProvisioning();
     return { ok: false, error: vetErr.message };
   }
+
+  await admin.from("audit_logs").insert({ petshop_id: membership.petshopId, actor_id: session.user.id, action: "veterinarian.created", entity_table: "veterinarians", entity_id: veterinarian.id, metadata: { user_id: newUserId } });
 
   revalidatePath("/app/veterinarios");
   return { ok: true };

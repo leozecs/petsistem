@@ -52,6 +52,7 @@ type RawAppt = {
   starts_at: string;
   ends_at: string;
   service_id: string | null;
+  tracking_expires_at: string | null;
   pet: { name: string; species: string } | null;
   service: { name: string } | null;
   petshop: { name: string; primary_color: string | null; whatsapp: string | null } | null;
@@ -76,7 +77,7 @@ export default async function TrackingPage({
   const { data, error } = await admin
     .from("appointments")
     .select(
-      "id, petshop_id, status, starts_at, ends_at, service_id, pet:pets(name, species), service:services(name), petshop:petshops(name, primary_color, whatsapp), checklist_meta:appointment_checklists(products, arrival_condition, notes)",
+      "id, petshop_id, status, starts_at, ends_at, service_id, tracking_expires_at, pet:pets(name, species), service:services(name), petshop:petshops(name, primary_color, whatsapp), checklist_meta:appointment_checklists(products, arrival_condition, notes)",
     )
     .eq("tracking_slug", code)
     .is("deleted_at", null)
@@ -84,6 +85,7 @@ export default async function TrackingPage({
 
   if (error || !data) notFound();
   const appt = data as unknown as RawAppt;
+  if (appt.tracking_expires_at && new Date(appt.tracking_expires_at).getTime() <= Date.now()) notFound();
 
   const status = appt.status;
   const statusInfo = STATUS_LABEL[status] ?? { label: "Status atual", tone: "amber" as const };

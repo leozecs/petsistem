@@ -158,7 +158,23 @@ export async function toggleChecklistStep(
     );
   if (error) return { ok: false, error: error.message };
 
+  if (parsed.data.done) {
+    const { data: started } = await supabase
+      .from("appointments")
+      .update({ status: "in_progress", updated_by: session.user.id })
+      .eq("id", parsed.data.appointment_id)
+      .eq("petshop_id", membership.petshopId)
+      .in("status", ["confirmed", "checked_in"])
+      .select("id")
+      .maybeSingle();
+    if (started) {
+      await createAdminClient()?.from("audit_logs").insert({ petshop_id: membership.petshopId, actor_id: session.user.id, action: "appointment.started_from_checklist", entity_table: "appointments", entity_id: started.id, metadata: { step_id: parsed.data.step_id } });
+    }
+  }
+
   revalidatePath("/app/checklist");
+  revalidatePath("/app/calendarios");
+  revalidatePath("/app/atendimentos");
   return { ok: true };
 }
 

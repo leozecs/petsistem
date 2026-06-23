@@ -362,6 +362,7 @@ export function LojasManager({
                     <TableHead>Plano</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Criada em</TableHead>
+                    <TableHead className="text-right">Abrir</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -385,6 +386,17 @@ export function LojasManager({
                       </TableCell>
                       <TableCell className="text-zinc-600">
                         {BR_DATE.format(new Date(p.created_at))}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <a
+                          href={`https://${p.subdomain}.${ROOT_DOMAIN}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                        >
+                          <ExternalLink className="size-3.5" /> Subdomínio
+                        </a>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -63,8 +63,28 @@ export async function generatePayment(
   });
   if (error) return { ok: false, error: error.message };
 
+  const { data: owners } = await admin
+    .from("memberships")
+    .select("user_id")
+    .eq("petshop_id", sub.petshop_id)
+    .eq("role", "owner")
+    .eq("status", "active")
+    .is("deleted_at", null);
+  if ((owners ?? []).length > 0) {
+    await admin.from("notifications").insert((owners ?? []).map((owner) => ({
+      petshop_id: sub.petshop_id,
+      user_id: owner.user_id,
+      kind: "subscription_due" as const,
+      title: "Nova cobrança da assinatura",
+      body: "Pagamento disponível. Após o vencimento, há prazo de 3 dias antes da suspensão do acesso.",
+      link: "/app/assinatura",
+    })));
+  }
+  await admin.from("audit_logs").insert({ petshop_id: sub.petshop_id, actor_id: me.id, action: "billing.payment_generated", entity_table: "subscriptions", entity_id: sub.id, metadata: { amount_cents: sub.amount_cents } });
+
   revalidatePath("/admin-master/cobrancas");
   revalidatePath("/admin-master/assinaturas");
+  revalidatePath("/app/assinatura");
   return { ok: true };
 }
 

@@ -2,6 +2,7 @@ import {
   Activity,
   Bell,
   CalendarCheck,
+  CalendarRange,
   ClipboardCheck,
   CreditCard,
   FileBarChart,
@@ -38,9 +39,11 @@ export const adminMasterNav: NavItem[] = [
 export const ownerNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
   { href: "/app/calendarios", label: "Calendários", icon: CalendarCheck },
+  { href: "/app/atendimentos", label: "Atendimentos", icon: CalendarRange },
   { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
   { href: "/app/funcionarios", label: "Funcionários", icon: UserCog },
   { href: "/app/veterinarios", label: "Veterinários", icon: Stethoscope },
+  { href: "/app/consultas", label: "Consultas", icon: HeartPulse },
   { href: "/app/servicos", label: "Serviços", icon: Scissors },
   { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
   { href: "/app/financeiro", label: "Financeiro", icon: Receipt },
@@ -53,6 +56,7 @@ export const ownerNav: NavItem[] = [
 export const attendantNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
   { href: "/app/calendarios", label: "Agenda Banho e Tosa", icon: CalendarCheck },
+  { href: "/app/atendimentos", label: "Atendimentos", icon: CalendarRange },
   { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
   { href: "/app/checklist", label: "Checklist", icon: ClipboardCheck },
 ];
@@ -60,6 +64,8 @@ export const attendantNav: NavItem[] = [
 export const veterinarianNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
   { href: "/app/calendarios", label: "Calendário Veterinário", icon: HeartPulse },
+  { href: "/app/atendimentos", label: "Atendimentos", icon: CalendarRange },
+  { href: "/app/consultas", label: "Consultas", icon: Stethoscope },
   { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
 ];
 

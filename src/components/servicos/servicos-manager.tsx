@@ -20,6 +20,7 @@ import { StatusPill } from "@/components/shared/status-pill";
 import { SectionHeading } from "@/components/app/section-heading";
 import { deleteService, saveService } from "@/app/app/servicos/actions";
 import type { Database } from "@/lib/supabase/database.types";
+import { cn } from "@/lib/utils";
 
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
 
@@ -70,8 +71,10 @@ export function ServicosManager({
   canManage: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [areaTab, setAreaTab] = useState<"grooming" | "veterinary">("grooming");
   const [editing, setEditing] = useState<ServiceRow | null>(null);
   const [pending, startTransition] = useTransition();
+  const visibleServices = initialServices.filter((service) => service.area === areaTab);
 
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceFormSchema),
@@ -147,9 +150,25 @@ export function ServicosManager({
         }
       />
 
+      <div className="mb-4 inline-flex rounded-md border border-zinc-200 bg-zinc-50 p-1">
+        {(["grooming", "veterinary"] as const).map((area) => (
+          <button
+            key={area}
+            type="button"
+            onClick={() => setAreaTab(area)}
+            className={cn(
+              "rounded px-4 py-2 text-sm font-medium transition",
+              areaTab === area ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-600 hover:text-zinc-950",
+            )}
+          >
+            {area === "grooming" ? "Petshop" : "Veterinária"}
+          </button>
+        ))}
+      </div>
+
       <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
         <CardContent className="p-0">
-          {initialServices.length === 0 ? (
+          {visibleServices.length === 0 ? (
             <div className="p-10">
               <EmptyState
                 icon={Scissors}
@@ -179,7 +198,7 @@ export function ServicosManager({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {initialServices.map((s) => (
+                  {visibleServices.map((s) => (
                     <TableRow key={s.id}>
                       <TableCell className="font-medium">
                         {s.name}

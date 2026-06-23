@@ -1,4 +1,4 @@
-import { CreditCard } from "lucide-react";
+import { BellRing } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeading } from "@/components/app/section-heading";
@@ -7,6 +7,7 @@ import { hasRole, requireTenant } from "@/lib/auth/require-tenant";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 import { currencyBRL } from "@/lib/tenant";
+import { PixPaymentCard } from "@/components/assinatura/pix-payment-card";
 
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 
@@ -33,24 +34,17 @@ export default async function SubscriptionPage() {
   const supabase = await createClient();
   if (!supabase) redirect("/login?error=supabase-not-configured");
 
-  const [subscriptionResult, platformSettingsResult] = await Promise.all([
-    supabase
+  const subscriptionResult = await supabase
       .from("subscriptions")
       .select("id, petshop_id, plan_name, amount_cents, due_date, status, created_at")
       .eq("petshop_id", membership.petshopId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("platform_settings")
-      .select("pix_key, pix_holder_name")
-      .eq("id", 1)
-      .maybeSingle(),
-  ]);
+      .maybeSingle();
 
   const subscription = subscriptionResult.data;
-  const error = subscriptionResult.error ?? platformSettingsResult.error;
+  const error = subscriptionResult.error;
 
   if (error) {
     console.error("Failed to load tenant subscription", {
@@ -94,8 +88,6 @@ export default async function SubscriptionPage() {
   }
 
   const status = statusPresentation[subscription.status];
-  const platformPixKey = platformSettingsResult.data?.pix_key ?? null;
-  const platformPixHolder = platformSettingsResult.data?.pix_holder_name ?? null;
 
   return (
     <div>
@@ -103,6 +95,7 @@ export default async function SubscriptionPage() {
         title="Minha Assinatura"
         description={`Plano, vencimento e status financeiro de ${membership.petshop.name}.`}
       />
+      {subscription.status !== "paid" ? <div className="mb-5 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950"><BellRing className="mt-0.5 size-5 shrink-0" /><div><p className="font-semibold">Pagamento mensal pendente</p><p className="mt-1 text-sm">Pague até o vencimento. Após 3 dias de atraso, o acesso do dono e da equipe poderá ser suspenso até a regularização.</p></div></div> : null}
       <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
         <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
           <CardContent className="grid gap-6 p-6 md:grid-cols-2">
@@ -131,30 +124,7 @@ export default async function SubscriptionPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-lg border-zinc-200 bg-zinc-950 text-white shadow-none">
-          <CardContent className="p-6">
-            <CreditCard className="size-7" />
-            <h2 className="mt-5 text-xl font-semibold">Pagamento via Pix</h2>
-            {platformPixKey ? (
-              <>
-                <p className="mt-3 text-sm leading-6 text-zinc-300">
-                  Use a chave abaixo para realizar o pagamento desta assinatura.
-                </p>
-                <div className="mt-5 break-all rounded-lg bg-white/10 p-4 font-mono text-sm">
-                  {platformPixKey}
-                </div>
-                {platformPixHolder ? (
-                  <p className="mt-3 text-xs text-zinc-400">Titular: {platformPixHolder}</p>
-                ) : null}
-              </>
-            ) : (
-              <p className="mt-3 text-sm leading-6 text-zinc-300">
-                A chave Pix ainda não foi configurada para este ciclo. Entre em contato com o
-                suporte antes de realizar o pagamento.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <PixPaymentCard planName={subscription.plan_name} />
       </div>
     </div>
   );

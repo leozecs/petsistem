@@ -21,6 +21,7 @@ import {
 } from "@/app/app/checklist/actions";
 import { cn } from "@/lib/utils";
 import { ChecklistConfigDialog, type ChecklistTemplate } from "@/components/checklist/checklist-config-dialog";
+import { compressImageForUpload } from "@/lib/images/compress-upload";
 
 type Status = "confirmed" | "checked_in" | "in_progress";
 
@@ -58,6 +59,9 @@ const HOUR_FMT = new Intl.DateTimeFormat("pt-BR", {
 });
 
 export function ChecklistDayView({ cards, templates = [], canConfigure = false }: { cards: ChecklistCard[]; templates?: ChecklistTemplate[]; canConfigure?: boolean }) {
+  const availableAreas = Array.from(new Set(cards.map((card) => card.area)));
+  const [area, setArea] = useState<"grooming" | "veterinary">(availableAreas[0] ?? "grooming");
+  const visibleCards = cards.filter((card) => card.area === area);
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -69,7 +73,9 @@ export function ChecklistDayView({ cards, templates = [], canConfigure = false }
         {canConfigure ? <ChecklistConfigDialog templates={templates} /> : null}
       </div>
 
-      {cards.length === 0 ? (
+      {availableAreas.length > 1 ? <div className="inline-flex rounded-md border border-zinc-200 bg-zinc-50 p-1">{(["grooming", "veterinary"] as const).map((value) => <button key={value} type="button" onClick={() => setArea(value)} className={cn("rounded px-4 py-2 text-sm font-medium", area === value ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-600")}>{value === "grooming" ? "Petshop" : "Veterinária"}</button>)}</div> : null}
+
+      {visibleCards.length === 0 ? (
         <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
           <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
             <ClipboardList className="size-8 text-zinc-300" />
@@ -80,7 +86,7 @@ export function ChecklistDayView({ cards, templates = [], canConfigure = false }
         </Card>
       ) : (
         <div className="grid gap-3">
-          {cards.map((c) => (
+          {visibleCards.map((c) => (
             <ChecklistCardItem key={c.appointmentId} card={c} />
           ))}
         </div>
@@ -208,8 +214,15 @@ function StepRow({
     const fd = new FormData();
     fd.set("appointment_id", appointmentId);
     fd.set("step_id", step.stepId);
-    fd.set("file", file);
     startTransition(async () => {
+      let uploadFile: File;
+      try {
+        uploadFile = await compressImageForUpload(file);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Não foi possível processar a foto.");
+        return;
+      }
+      fd.set("file", uploadFile);
       const res = await uploadStepPhoto(fd);
       if (res.ok) toast.success("Foto enviada.");
       else toast.error(res.error);
@@ -289,7 +302,7 @@ function StepRow({
           <input
             ref={fileRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/*"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
