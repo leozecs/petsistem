@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { ArrowUpRight, PawPrint } from "lucide-react";
+import { PawPrint } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/auth-actions";
-import { PetsistemLogo } from "@/components/brand/logo";
 import { LoginSubmitButton } from "@/components/auth/login-submit-button";
 import { RateLimitBanner } from "@/components/auth/rate-limit-banner";
 
@@ -43,10 +42,20 @@ export function LoginScreen({
       {/* FORMULÁRIO */}
       <section className="flex items-center px-5 py-10 sm:px-8 lg:px-16">
         <div className="mx-auto w-full max-w-md">
-          <Link href="/" className="mb-10 inline-flex items-center gap-2">
-            <div className="flex h-7 w-32 items-center overflow-hidden">
-              <PetsistemLogo tone="dark" className="w-32" priority />
+          <Link
+            href="/"
+            className="mb-10 inline-flex items-center gap-2.5"
+            aria-label="Voltar para PETSISTEM"
+          >
+            <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-800 text-[#f7f5ef]">
+              <PawPrint className="size-4" strokeWidth={2.2} />
             </div>
+            <span
+              className="text-[15px] font-semibold tracking-tight text-zinc-900"
+              style={{ fontFamily: "var(--font-bricolage)" }}
+            >
+              PETSISTEM
+            </span>
           </Link>
 
           <p
@@ -130,16 +139,6 @@ export function LoginScreen({
             </fieldset>
           </form>
 
-          <div className="mt-8 border-t border-zinc-200 pt-6 text-[13px] leading-6 text-zinc-600">
-            Quer testar um agendamento sem entrar?{" "}
-            <Link
-              href="/loja/petgres"
-              className="inline-flex items-center gap-0.5 font-semibold text-emerald-800 hover:underline"
-            >
-              Ver loja de exemplo
-              <ArrowUpRight className="size-3.5" />
-            </Link>
-          </div>
         </div>
       </section>
 
@@ -155,20 +154,22 @@ export function LoginScreen({
         />
 
         <div className="relative flex h-full min-h-[100dvh] flex-col justify-between p-14">
-          <div className="flex items-center gap-3">
-            <div className="flex h-7 w-32 items-center overflow-hidden">
-              <PetsistemLogo tone="light" className="w-32" priority />
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-[#f7f5ef]/15 text-[#f7f5ef]">
+              <PawPrint className="size-4" strokeWidth={2.2} />
             </div>
-            <span className="rounded-full border border-emerald-100/30 bg-emerald-100/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-100">
+            <span
+              className="text-[15px] font-semibold tracking-tight text-[#f7f5ef]"
+              style={{ fontFamily: "var(--font-bricolage)" }}
+            >
+              PETSISTEM
+            </span>
+            <span className="ml-1 rounded-full border border-emerald-100/30 bg-emerald-100/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-100">
               Painel
             </span>
           </div>
 
           <div className="max-w-md space-y-7">
-            <PawPrint
-              className="size-10 text-emerald-300/70"
-              strokeWidth={1.5}
-            />
             <p
               className="text-[2.5rem] font-medium leading-[1.05] tracking-[-0.02em]"
               style={{

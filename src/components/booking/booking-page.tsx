@@ -30,7 +30,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { PetsistemLogo } from "@/components/brand/logo";
 import { isPetshopAcceptingBookings } from "@/lib/petshop-status";
 import { cn } from "@/lib/utils";
 import {
@@ -650,12 +649,15 @@ export function BookingPage({
               Entrar no painel
             </a>
           </p>
-          <div className="flex items-center gap-2">
-            <span>Powered by</span>
-            <div className="flex h-4 w-20 items-center overflow-hidden">
-              <PetsistemLogo tone="dark" className="w-20" />
-            </div>
-          </div>
+          <p className="flex items-center gap-1.5">
+            Powered by{" "}
+            <span
+              className="font-semibold tracking-tight text-zinc-700"
+              style={{ fontFamily: "var(--font-bricolage)" }}
+            >
+              PETSISTEM
+            </span>
+          </p>
         </footer>
 
         {/* STICKY MOBILE CTA */}
