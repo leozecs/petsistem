@@ -98,13 +98,24 @@ export async function deletePlan(id: string): Promise<ActionState> {
   const admin = createAdminClient();
   if (!admin) return { ok: false, error: "Service role indisponível." };
 
-  // Soft-disable em vez de delete físico — preserva histórico em subscriptions
-  // que referenciam o plano pelo nome.
-  const { error } = await admin
+  const { data: plan, error: planError } = await admin
     .from("plans")
-    .update({ active: false, updated_by: me.id })
-    .eq("id", id);
+    .select("id, code, name")
+    .eq("id", id)
+    .maybeSingle();
+  if (planError) return { ok: false, error: planError.message };
+  if (!plan) return { ok: false, error: "Plano não encontrado." };
+
+  const { error } = await admin.from("plans").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  await admin.from("audit_logs").insert({
+    actor_id: me.id,
+    action: "plan.deleted",
+    entity_table: "plans",
+    entity_id: id,
+    metadata: { code: plan.code, name: plan.name },
+  });
 
   revalidatePath("/admin-master/planos");
   return { ok: true };

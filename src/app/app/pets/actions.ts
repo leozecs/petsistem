@@ -97,6 +97,17 @@ export async function savePet(_prev: PetFormState, formData: FormData): Promise<
       .eq("petshop_id", membership.petshopId);
     if (error) return { ok: false, error: error.message };
   } else {
+    const { count, error: countError } = await supabase
+      .from("pets")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", parsed.data.client_id)
+      .eq("petshop_id", membership.petshopId)
+      .is("deleted_at", null);
+    if (countError) return { ok: false, error: countError.message };
+    if ((count ?? 0) >= 10) {
+      return { ok: false, error: "Este tutor já atingiu o limite de 10 pets." };
+    }
+
     const { error } = await supabase
       .from("pets")
       .insert({ ...payload, created_by: session.user.id });

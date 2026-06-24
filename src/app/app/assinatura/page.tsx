@@ -124,7 +124,7 @@ export default async function SubscriptionPage() {
           </CardContent>
         </Card>
 
-        <PixPaymentCard planName={subscription.plan_name} />
+        <PixPaymentCard planName={subscription.plan_name} subscriptionId={subscription.id} status={subscription.status} />
       </div>
     </div>
   );

@@ -969,13 +969,14 @@ export function CalendariosView({
 
       {/* Mobile FAB. Spacer pushes scrollable content above the floating button so
           the last day-appointment row stays tappable. */}
-      <div className="h-24 sm:hidden" aria-hidden />
+      <div className="h-28 sm:hidden" aria-hidden />
       <button
         onClick={openCreate}
-        className="fixed bottom-6 right-6 z-40 inline-flex size-14 items-center justify-center rounded-full bg-zinc-950 text-white shadow-xl shadow-zinc-950/20 transition hover:bg-zinc-800 sm:hidden"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-40 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 px-5 text-sm font-semibold text-white shadow-xl shadow-zinc-950/20 transition hover:bg-zinc-800 sm:hidden"
         aria-label="Novo agendamento"
       >
-        <Plus className="size-6" />
+        <Plus className="size-5" />
+        Agendar
       </button>
 
       {/* Form dialog */}

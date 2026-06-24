@@ -42,6 +42,13 @@ function roleLabel(session: SessionContext, variant: ShellVariant): string {
   return "Acesso";
 }
 
+function isLightColor(hex: string): boolean {
+  const red = Number.parseInt(hex.slice(1, 3), 16);
+  const green = Number.parseInt(hex.slice(3, 5), 16);
+  const blue = Number.parseInt(hex.slice(5, 7), 16);
+  return (red * 299 + green * 587 + blue * 114) / 1000 >= 150;
+}
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 function getPetshopLogoUrl(petshop: ActivePetshop | null | undefined) {
@@ -168,25 +175,25 @@ function SidebarContent({ session, variant, mobile = false, onNavigate }: { sess
   const pathname = usePathname();
   const nav = navigationForSession(session);
 
-  // Sidebar pinta com primary_color da loja ativa (tenant). Admin Master usa
-  // zinc-950 fixo. Default fallback continua zinc-950 pra cobrir loja sem
-  // cor configurada.
+  // A cor da loja pertence apenas ao miolo de navegação. Identidade e conta
+  // ficam em zonas neutras para preservar legibilidade em qualquer tema.
   const tenantColor =
     variant === "tenant" ? session.activeMembership?.petshop.primaryColor : null;
   const sidebarBg = tenantColor && /^#[0-9a-fA-F]{6}$/.test(tenantColor)
     ? tenantColor
     : "#09090b"; // zinc-950
+  const lightNavigation = isLightColor(sidebarBg);
 
   return (
-    <div
-      className="flex h-full flex-col text-white"
-      style={{ backgroundColor: sidebarBg }}
-    >
-      <div className={cn("border-b border-white/10", mobile ? "p-3" : "p-5")}>
+    <div className="flex h-full flex-col bg-zinc-950 text-white">
+      <div className={cn("shrink-0 bg-zinc-950", mobile ? "p-3" : "p-5")}>
         <SidebarHeader session={session} variant={variant} />
       </div>
 
-      <nav className={cn("flex-1 p-3", mobile ? "grid auto-rows-min grid-cols-2 content-start gap-2 overflow-visible" : "space-y-1 overflow-y-auto")}>
+      <nav
+        className={cn("flex-1 p-3", mobile ? "grid auto-rows-min grid-cols-2 content-start gap-2 overflow-y-auto" : "space-y-1 overflow-y-auto")}
+        style={{ backgroundColor: sidebarBg }}
+      >
         {nav.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
@@ -196,10 +203,14 @@ function SidebarContent({ session, variant, mobile = false, onNavigate }: { sess
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 text-sm font-medium text-zinc-300 transition",
-                mobile ? "min-h-12 border border-white/10" : "h-10",
-                "hover:bg-white/10 hover:text-white",
-                active && "bg-white text-zinc-950 hover:bg-white hover:text-zinc-950",
+                "flex items-center gap-3 rounded-md px-3 text-sm font-medium transition",
+                mobile ? "min-h-12 border" : "h-10",
+                lightNavigation
+                  ? "border-black/10 text-zinc-900 hover:bg-black/10 hover:text-black"
+                  : "border-white/10 text-zinc-200 hover:bg-white/10 hover:text-white",
+                active && (lightNavigation
+                  ? "bg-zinc-950 text-white hover:bg-zinc-900 hover:text-white"
+                  : "bg-white text-zinc-950 hover:bg-white hover:text-zinc-950"),
               )}
             >
               <Icon className="size-4" />
@@ -209,7 +220,9 @@ function SidebarContent({ session, variant, mobile = false, onNavigate }: { sess
         })}
       </nav>
 
-      <SidebarFooter session={session} variant={variant} />
+      <div className="shrink-0 bg-zinc-950">
+        <SidebarFooter session={session} variant={variant} />
+      </div>
     </div>
   );
 }

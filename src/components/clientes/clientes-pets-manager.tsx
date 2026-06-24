@@ -352,9 +352,11 @@ export function ClientesPetsManager({
                         size="sm"
                         className="rounded-md border-zinc-300 bg-white"
                         onClick={() => openCreatePet(c.id, c.name)}
+                        disabled={c.pets.length >= 10}
+                        title={c.pets.length >= 10 ? "Limite de 10 pets atingido" : "Adicionar pet"}
                       >
                         <Plus className="size-4" />
-                        Pet
+                        {c.pets.length >= 10 ? "Limite 10" : "Pet"}
                       </Button>
                       <Button
                         variant="outline"
@@ -494,8 +496,8 @@ export function ClientesPetsManager({
             {!clientDialog.editing ? <>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="c_pet_count">Quantos pets tem?</Label>
-                <Input id="c_pet_count" type="number" inputMode="numeric" min={0} max={10} value={petCount} onChange={(event) => {
-                  const count = Math.min(10, Math.max(0, Number(event.target.value) || 0));
+                <Input id="c_pet_count" type="number" inputMode="numeric" min={0} max={5} value={petCount} onChange={(event) => {
+                  const count = Math.min(5, Math.max(0, Number(event.target.value) || 0));
                   setPetCount(count);
                   setNewPets((current) => Array.from({ length: count }, (_, index) => current[index] ?? { name: "", breed: "" }));
                 }} />

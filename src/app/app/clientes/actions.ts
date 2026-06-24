@@ -28,7 +28,7 @@ const clientWithPetsSchema = z.object({
   pets: z.array(z.object({
     name: z.string().trim().min(1, "Nome do pet obrigatório").max(120),
     breed: z.string().trim().min(1, "Raça obrigatória").max(120),
-  })).max(10),
+  })).max(5, "O cadastro inicial permite até 5 pets."),
 });
 
 export async function createClientWithPets(input: z.infer<typeof clientWithPetsSchema>): Promise<ClientFormState> {
