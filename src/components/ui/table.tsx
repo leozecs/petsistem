@@ -8,8 +8,17 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      role="region"
+      aria-label="Tabela com rolagem horizontal"
+      tabIndex={0}
+      className="relative w-full overscroll-x-contain overflow-x-auto outline-none [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] focus-visible:ring-2 focus-visible:ring-ring/50"
     >
+      <div
+        aria-hidden="true"
+        className="sticky left-0 z-10 border-b border-border bg-muted/60 px-3 py-2 text-[0.6875rem] font-medium text-muted-foreground md:hidden"
+      >
+        Deslize horizontalmente para ver todas as colunas
+      </div>
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}

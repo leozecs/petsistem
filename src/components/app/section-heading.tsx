@@ -13,7 +13,11 @@ export function SectionHeading({
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">{title}</h1>
         {description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{description}</p> : null}
       </div>
-      {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
+      {action ? (
+        <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto [&>*]:max-sm:flex-1">
+          {action}
+        </div>
+      ) : null}
     </div>
   );
 }

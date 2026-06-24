@@ -16,10 +16,6 @@ import type { SessionContext } from "@/lib/auth/session";
 import { PetsistemLogo } from "@/components/brand/logo";
 
 type ShellVariant = "admin" | "tenant";
-
-function PageTransition({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
 type ActivePetshop = NonNullable<SessionContext["activeMembership"]>["petshop"];
 
 const knownPetshopLogos: Record<string, string> = {
@@ -195,13 +191,14 @@ function SidebarContent({ session, variant, mobile = false, onNavigate }: { sess
         style={{ backgroundColor: sidebarBg }}
       >
         {nav.map((item) => {
-          const active = pathname === item.href;
+          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href}
               onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 text-sm font-medium transition",
                 mobile ? "min-h-12 border" : "h-10",
@@ -240,13 +237,20 @@ export function AppShell({
   return (
     <TooltipProvider>
       <div className="min-h-[100dvh] bg-zinc-100 text-zinc-950">
-        <aside className="fixed inset-y-0 left-0 hidden w-72 lg:block">
+        <a
+          href="#main-content"
+          className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform focus:translate-y-0"
+        >
+          Pular para o conteúdo
+        </a>
+
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 lg:block">
           <SidebarContent session={session} variant={variant} />
         </aside>
 
         <div className="pt-16 lg:pl-72">
-          <header className="fixed inset-x-0 top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur lg:left-72">
-            <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+          <header className="fixed inset-x-0 top-0 z-30 border-b border-zinc-200/80 bg-white/90 shadow-[0_1px_0_rgb(24_24_27/0.03)] backdrop-blur-xl lg:left-72">
+            <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger
                   render={<Button variant="outline" size="icon" className="rounded-md lg:hidden" />}
@@ -274,9 +278,12 @@ export function AppShell({
             </div>
           </header>
 
-          <PageTransition>
-            <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
-          </PageTransition>
+          <main
+            id="main-content"
+            className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8"
+          >
+            {children}
+          </main>
         </div>
       </div>
     </TooltipProvider>

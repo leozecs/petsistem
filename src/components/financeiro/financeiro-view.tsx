@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   ArrowDownCircle,
@@ -10,7 +11,6 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,11 +37,21 @@ import {
   deleteRevenueItem,
 } from "@/app/app/financeiro/actions";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { FinanceChartPoint } from "@/components/financeiro/finance-chart";
+
+const FinanceChart = dynamic(
+  () => import("@/components/financeiro/finance-chart").then((module) => module.FinanceChart),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-64 w-full sm:h-80" />,
+  },
+);
 
 type PaymentMethod = "pix" | "cash" | "card" | "transfer" | "other";
 const PAYMENT_METHOD_ITEMS = { pix: "Pix", cash: "Dinheiro", card: "Cartão", transfer: "Transferência", other: "Outro" };
 
-export type FinanceChartPoint = { month: string; revenueCents: number; expenseCents: number; profitCents: number };
+export type { FinanceChartPoint } from "@/components/financeiro/finance-chart";
 
 export type Movement = {
   id: string;
@@ -144,7 +154,7 @@ export function FinanceiroView({
               <Select items={{ "1": "1º semestre", "2": "2º semestre" }} value={String(selectedSemester)} onValueChange={(value) => router.push(`/app/financeiro?year=${selectedYear}&semester=${value}`)}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1º semestre</SelectItem><SelectItem value="2">2º semestre</SelectItem></SelectContent></Select>
             </div>
           </div>
-          <div className="h-80 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={chart} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} /><XAxis dataKey="month" tick={{ fill: "#71717a", fontSize: 12 }} axisLine={false} tickLine={false} /><YAxis tickFormatter={(value) => `R$ ${Math.round(Number(value) / 100)}`} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} width={72} /><Tooltip formatter={(value) => brl(Number(value))} /><Legend /><Line type="monotone" dataKey="revenueCents" name="Faturamento" stroke="#059669" strokeWidth={2.5} dot={{ r: 3 }} /><Line type="monotone" dataKey="expenseCents" name="Despesas" stroke="#e11d48" strokeWidth={2.5} dot={{ r: 3 }} /><Line type="monotone" dataKey="profitCents" name="Lucro" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3 }} /></LineChart></ResponsiveContainer></div>
+          <FinanceChart data={chart} />
         </CardContent>
       </Card>
 

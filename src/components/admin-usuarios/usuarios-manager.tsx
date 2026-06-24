@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -100,7 +100,7 @@ export function UsuariosManager({
   const [pending, startTransition] = useTransition();
 
   // Persist search in URL — debounced. Pressing Enter submits immediately.
-  function pushUrl(patch: { q?: string; petshop?: string }) {
+  const pushUrl = useCallback((patch: { q?: string; petshop?: string }) => {
     const next = new URLSearchParams(params.toString());
     if (patch.q !== undefined) {
       if (patch.q) next.set("q", patch.q);
@@ -111,18 +111,17 @@ export function UsuariosManager({
       else next.delete("petshop");
     }
     router.push(`/admin-master/usuarios?${next.toString()}`);
-  }
+  }, [params, router]);
 
   // Debounced search push — re-running on currentSearch/pushUrl changes would
   // create a feedback loop (every URL push would re-fire the effect). The
   // `search` state is the only legitimate trigger.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const id = setTimeout(() => {
       if (search !== currentSearch) pushUrl({ q: search });
     }, 350);
     return () => clearTimeout(id);
-  }, [search]);
+  }, [currentSearch, pushUrl, search]);
 
   useEffect(() => {
     if (!drawerUser) {
@@ -231,7 +230,7 @@ export function UsuariosManager({
       />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="relative min-w-[240px] flex-1">
+        <div className="relative w-full min-w-0 flex-1 sm:min-w-[240px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
           <Input
             placeholder="Buscar por nome ou email…"
@@ -240,11 +239,11 @@ export function UsuariosManager({
             className="rounded-md pl-9"
           />
         </div>
-        <div className="min-w-[200px]">
+        <div className="w-full sm:w-auto sm:min-w-[200px]">
           <select
             value={currentPetshopId || "all"}
             onChange={(e) => pushUrl({ petshop: e.target.value })}
-            className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            className="h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-base outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-300 lg:h-9 lg:text-sm"
           >
             {petshopOptions.map((p) => (
               <option key={p.id} value={p.id}>

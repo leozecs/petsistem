@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "motion/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -601,11 +600,7 @@ export function CalendariosView({
     calendars.filter((c) => c.area === activeArea).length > 1;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
-    >
+    <div>
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -653,7 +648,7 @@ export function CalendariosView({
 
       {/* Month nav row */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
           <Button
             variant="outline"
             size="icon"
@@ -663,7 +658,7 @@ export function CalendariosView({
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <span className="min-w-[10rem] text-base font-semibold text-zinc-950">
+          <span className="min-w-0 flex-1 truncate text-center text-sm font-semibold text-zinc-950 sm:min-w-[10rem] sm:text-left sm:text-base">
             {visibleMonthLabel}
           </span>
           <Button
@@ -693,7 +688,7 @@ export function CalendariosView({
             {WEEKDAY_LABELS.map((d) => (
               <div
                 key={d}
-                className="px-2 py-2 text-center text-xs font-medium uppercase tracking-wide text-zinc-500"
+                className="px-1 py-2 text-center text-[0.625rem] font-medium uppercase tracking-wide text-zinc-500 sm:px-2 sm:text-xs"
               >
                 {d}
               </div>
@@ -710,7 +705,7 @@ export function CalendariosView({
                   key={cell.iso}
                   onClick={() => pushUrl({ date: cell.iso })}
                   className={
-                    "flex h-24 flex-col gap-1 border-b border-r border-zinc-100 p-2 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:h-28 " +
+                    "flex h-14 min-w-0 flex-col gap-1 border-b border-r border-zinc-100 p-1.5 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-zinc-500 sm:h-28 sm:p-2 " +
                     (isActive
                       ? "bg-zinc-950 text-white"
                       : cell.inMonth
@@ -746,7 +741,7 @@ export function CalendariosView({
                   {firstAppt ? (
                     <div
                       className={
-                        "mt-auto flex items-center gap-1.5 truncate rounded px-1.5 py-1 text-[0.6875rem] " +
+                        "mt-auto hidden items-center gap-1.5 truncate rounded px-1.5 py-1 text-[0.6875rem] sm:flex " +
                         (isActive
                           ? "bg-white/15 text-white"
                           : statusChipClass(firstAppt.status))
@@ -770,7 +765,7 @@ export function CalendariosView({
           </div>
         </Card>
 
-        <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
+        <Card className="scroll-mt-20 rounded-lg border-zinc-200 bg-white shadow-none">
           <CardContent className="space-y-4 p-5">
             <div>
               <p className="text-xs uppercase tracking-wide text-zinc-500">Dia</p>
@@ -823,7 +818,7 @@ export function CalendariosView({
                       (a.status === "in_progress" || a.status === "finished") ? (
                         <button
                           onClick={() => openChecklistRead(a)}
-                          className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                         >
                           <ClipboardList className="size-3" />
                           Ver checklist
@@ -833,7 +828,7 @@ export function CalendariosView({
                       (a.status === "in_progress" || a.status === "finished") ? (
                         <button
                           onClick={() => openRecordRead(a)}
-                          className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                         >
                           <ClipboardList className="size-3" />
                           Ver prontuário
@@ -857,7 +852,7 @@ export function CalendariosView({
                             href={waUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-2 inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[0.6875rem] font-medium text-emerald-800 transition hover:bg-emerald-100"
+                            className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                           >
                             <MessageCircle className="size-3" />
                             WhatsApp confirmação
@@ -887,7 +882,7 @@ export function CalendariosView({
                               <button
                                 onClick={() => handleAdvance(a.id, a.status, a)}
                                 disabled={pending}
-                                className="inline-flex items-center gap-1 rounded-md bg-zinc-950 px-2 py-1 text-[0.6875rem] font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60"
+                                className="inline-flex min-h-11 items-center gap-1 rounded-md bg-zinc-950 px-3 py-1 text-xs font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                               >
                                 <ChevronAdvance className="size-3" />
                                 {advanceLabel}
@@ -897,7 +892,7 @@ export function CalendariosView({
                                 type="button"
                                 disabled
                                 title="Só dá pra avançar no dia do atendimento. Use Reagendar pra mover pra hoje."
-                                className="inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[0.6875rem] font-medium text-zinc-400"
+                                className="inline-flex min-h-11 cursor-not-allowed items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-400 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                               >
                                 <ChevronAdvance className="size-3" />
                                 {advanceLabel}
@@ -913,7 +908,7 @@ export function CalendariosView({
                               })
                             }
                             disabled={pending}
-                            className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                           >
                             <CalendarDays className="size-3" />
                             Reagendar
@@ -922,7 +917,7 @@ export function CalendariosView({
                             <button
                               onClick={() => handleUndo(a.id, a.status)}
                               disabled={pending}
-                              className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                              className="inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                               aria-label="Voltar status"
                             >
                               <Undo2 className="size-3" />
@@ -933,7 +928,7 @@ export function CalendariosView({
                             <button
                               onClick={() => handleNoShow(a.id)}
                               disabled={pending}
-                              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-amber-800 transition hover:bg-amber-50 disabled:opacity-60"
+                              className="inline-flex min-h-11 items-center gap-1 rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                             >
                               <UserX className="size-3" />
                               Não veio
@@ -943,7 +938,7 @@ export function CalendariosView({
                             <button
                               onClick={() => handleCancel(a.id)}
                               disabled={pending}
-                              className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
+                              className="inline-flex min-h-11 items-center gap-1 rounded-md border border-rose-200 bg-white px-3 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                             >
                               <Ban className="size-3" />
                               Cancelar
@@ -1187,7 +1182,7 @@ export function CalendariosView({
           router.refresh();
         }}
       />
-    </motion.div>
+    </div>
   );
 }
 
