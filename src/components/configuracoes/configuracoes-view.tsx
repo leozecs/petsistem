@@ -36,7 +36,7 @@ import {
   updatePetshopOperations,
   updatePetshopVisual,
 } from "@/app/app/configuracoes/actions";
-import { contrastWithWhite, MIN_AA_CONTRAST } from "@/lib/color";
+import { isLightBackground } from "@/lib/color";
 import { PETSHOP_TIME_ZONES } from "@/lib/timezones";
 import {
   getPetshopLogoExtension,
@@ -565,31 +565,20 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
                 </div>
 
                 <div
-                  className="flex h-10 items-center rounded-md px-4 text-sm font-semibold text-white"
+                  className="flex h-10 items-center rounded-md px-4 text-sm font-semibold"
                   style={{ backgroundColor: color }}
                 >
-                  Preview
+                  <span className={isLightBackground(color) ? "text-zinc-950" : "text-white"}>
+                    Preview da navegação
+                  </span>
                 </div>
-
-                {(() => {
-                  const ratio = contrastWithWhite(color);
-                  const ok = ratio >= MIN_AA_CONTRAST;
-                  return (
-                    <p
-                      className={
-                        "text-xs " +
-                        (ok ? "text-emerald-700" : "text-rose-700 font-medium")
-                      }
-                    >
-                      Contraste com texto branco: {ratio.toFixed(2)}:1
-                      {ok ? " ✓ ok" : " — muito clara, escolha uma cor mais escura."}
-                    </p>
-                  );
-                })()}
+                <p className="text-xs text-zinc-500">
+                  Texto fica preto em cores claras e branco em cores escuras.
+                </p>
 
                 <Button
                   type="submit"
-                  disabled={pending || contrastWithWhite(color) < MIN_AA_CONTRAST}
+                  disabled={pending}
                   className="rounded-md bg-zinc-950 text-white hover:bg-zinc-800"
                 >
                   <Save className="size-4" />

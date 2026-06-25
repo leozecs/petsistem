@@ -117,7 +117,7 @@ export async function toggleChecklistStep(
   const allowed = allowedAreasForRole(membership.role);
   const { data: appt } = await supabase
     .from("appointments")
-    .select("id, calendar:calendars!inner(area)")
+    .select("id, service_id, calendar:calendars!inner(area)")
     .eq("id", parsed.data.appointment_id)
     .eq("petshop_id", membership.petshopId)
     .is("deleted_at", null)
@@ -128,32 +128,51 @@ export async function toggleChecklistStep(
     return { ok: false, error: "Sem permissão na área deste atendimento." };
   }
 
-  // Confirma step pertence à mesma loja
-  const { data: step } = await supabase
-    .from("checklist_steps")
-    .select("id")
-    .eq("id", parsed.data.step_id)
-    .eq("petshop_id", membership.petshopId)
-    .eq("active", true)
-    .maybeSingle();
-  if (!step) return { ok: false, error: "Etapa inválida." };
+  const serviceId = appt.service_id ?? null;
+
+  // Resolve authoritative staircase for this appointment: service-specific
+  // steps take precedence; global steps are the fallback.
+  const { data: serviceSteps } = serviceId
+    ? await supabase
+        .from("checklist_steps")
+        .select("id, position")
+        .eq("petshop_id", membership.petshopId)
+        .eq("service_id", serviceId)
+        .eq("active", true)
+        .order("position", { ascending: true })
+    : { data: null };
+  const { data: globalSteps } = serviceSteps?.length
+    ? { data: null }
+    : await supabase
+        .from("checklist_steps")
+        .select("id, position")
+        .eq("petshop_id", membership.petshopId)
+        .is("service_id", null)
+        .eq("active", true)
+        .order("position", { ascending: true });
+  const orderedSteps = serviceSteps?.length ? serviceSteps : (globalSteps ?? []);
+  const targetIndex = orderedSteps.findIndex((step) => step.id === parsed.data.step_id);
+  if (targetIndex < 0) return { ok: false, error: "Etapa inválida para este serviço." };
 
   // Upsert manualmente (sem unique compound em checklists.appointment+step?)
   // initial_schema declarou unique (appointment_id, step_id). OK pra upsert.
+  const affectedSteps = parsed.data.done
+    ? orderedSteps.slice(0, targetIndex + 1)
+    : orderedSteps.slice(targetIndex);
   const completed_at = parsed.data.done ? new Date().toISOString() : null;
   const completed_by = parsed.data.done ? session.user.id : null;
 
   const { error } = await supabase
     .from("checklists")
     .upsert(
-      {
+      affectedSteps.map((step) => ({
         petshop_id: membership.petshopId,
         appointment_id: parsed.data.appointment_id,
-        step_id: parsed.data.step_id,
+        step_id: step.id,
         completed_at,
         completed_by,
-        notes: parsed.data.notes ?? null,
-      },
+        notes: step.id === parsed.data.step_id ? parsed.data.notes ?? null : null,
+      })),
       { onConflict: "appointment_id,step_id" },
     );
   if (error) return { ok: false, error: error.message };
@@ -171,6 +190,15 @@ export async function toggleChecklistStep(
       await createAdminClient()?.from("audit_logs").insert({ petshop_id: membership.petshopId, actor_id: session.user.id, action: "appointment.started_from_checklist", entity_table: "appointments", entity_id: started.id, metadata: { step_id: parsed.data.step_id } });
     }
   }
+
+  await createAdminClient()?.from("audit_logs").insert({
+    petshop_id: membership.petshopId,
+    actor_id: session.user.id,
+    action: parsed.data.done ? "checklist.progressed" : "checklist.rolled_back",
+    entity_table: "appointments",
+    entity_id: parsed.data.appointment_id,
+    metadata: { step_id: parsed.data.step_id, affected_steps: affectedSteps.length },
+  });
 
   revalidatePath("/app/checklist");
   revalidatePath("/app/calendarios");

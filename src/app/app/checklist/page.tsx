@@ -81,7 +81,7 @@ export default async function ChecklistPage() {
   );
 
   if (allAppts.length === 0) {
-    return <ChecklistDayView cards={[]} templates={templates} canConfigure={canConfigure} />;
+    return <ChecklistDayView cards={[]} templates={templates} canConfigure={canConfigure} timeZone={timeZone} />;
   }
 
   const serviceIds = Array.from(
@@ -190,5 +190,5 @@ export default async function ChecklistPage() {
     };
   });
 
-  return <ChecklistDayView cards={cards} templates={templates} canConfigure={canConfigure} />;
+  return <ChecklistDayView cards={cards} templates={templates} canConfigure={canConfigure} timeZone={timeZone} />;
 }

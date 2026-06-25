@@ -112,6 +112,7 @@ type Props = {
 };
 
 const WEEKDAY_LABELS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 const formSchema = z.object({
   service_id: z.string().uuid("Serviço obrigatório"),
@@ -234,6 +235,11 @@ export function CalendariosView({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDateIso, setSelectedDateIso] = useState(activeDateIso);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(visibleYear);
+
+  useEffect(() => setSelectedDateIso(activeDateIso), [activeDateIso]);
   // Checklist dialog target. When set, ChecklistDialog opens for that appointment.
   // submitLabel toggles between "Salvar e iniciar" (intercept of checked_in→in_progress)
   // and "Salvar" (read/edit mode for already-started or finished bookings).
@@ -276,8 +282,8 @@ export function CalendariosView({
   );
 
   const dayAppointments = useMemo(
-    () => appointmentsByDay[activeDateIso] ?? [],
-    [appointmentsByDay, activeDateIso],
+    () => appointmentsByDay[selectedDateIso] ?? [],
+    [appointmentsByDay, selectedDateIso],
   );
 
   const visibleMonthLabel = useMemo(() => {
@@ -287,10 +293,10 @@ export function CalendariosView({
 
   // Usa meia-noite UTC equivalente ao fuso da loja, independente do navegador.
   const selectedDate = useMemo(() => {
-    const [y, m, d] = activeDateIso.split("-").map(Number);
+    const [y, m, d] = selectedDateIso.split("-").map(Number);
     if (!y || !m || !d) return new Date();
     return utcInstantOfPetshopMidnight(y, m - 1, d, timeZone);
-  }, [activeDateIso, timeZone]);
+  }, [selectedDateIso, timeZone]);
 
   const servicesForArea = useMemo(
     () => services.filter((s) => s.area === activeArea),
@@ -329,14 +335,14 @@ export function CalendariosView({
 
   const availableSlots = useMemo(() => {
     if (!selectedService) return [];
-    const [y, m, d] = activeDateIso.split("-").map(Number);
+    const [y, m, d] = selectedDateIso.split("-").map(Number);
     if (!y || !m || !d) return [];
     const petshopMidnight = utcInstantOfPetshopMidnight(y, m - 1, d, timeZone);
     const nextDay = isoDateOnlyParts(y, m - 1, d + 1);
     const prevDay = isoDateOnlyParts(y, m - 1, d - 1);
     const candidates = [
       ...(appointmentsByDay[prevDay] ?? []),
-      ...(appointmentsByDay[activeDateIso] ?? []),
+      ...(appointmentsByDay[selectedDateIso] ?? []),
       ...(appointmentsByDay[nextDay] ?? []),
     ];
     const dayAppts = candidates
@@ -358,34 +364,31 @@ export function CalendariosView({
       stepMin: slotMinutes,
     });
 
-    // A service of duration D needs ceil(D / slotMinutes) consecutive free
-    // anchor slots. Walk the array and keep anchors whose forward window is
-    // fully free AND contiguous (no gap across schedule windows).
-    const slotsNeeded = Math.max(1, Math.ceil(selectedService.duration_minutes / slotMinutes));
-    const bookable: typeof rawSlots = [];
-    for (let i = 0; i <= rawSlots.length - slotsNeeded; i++) {
-      const window = rawSlots.slice(i, i + slotsNeeded);
-      if (!window.every((s) => s.status === "free")) continue;
-      let contiguous = true;
-      for (let j = 0; j < window.length - 1; j++) {
-        if (window[j]!.end.getTime() !== window[j + 1]!.start.getTime()) {
-          contiguous = false;
-          break;
-        }
-      }
-      if (contiguous) bookable.push(window[0]!);
-    }
-    return bookable;
-  }, [selectedService, activeDateIso, schedules, appointmentsByDay, slotMinutes, timeZone]);
+    return rawSlots.filter((slot) => slot.status === "free");
+  }, [selectedService, selectedDateIso, schedules, appointmentsByDay, slotMinutes, timeZone]);
 
   function navigateMonth(delta: number) {
     const next = new Date(visibleYear, visibleMonth0 + delta, 1);
     const iso = isoDateOnlyParts(next.getFullYear(), next.getMonth(), 1);
+    setSelectedDateIso(iso);
     pushUrl({ date: iso });
   }
 
   function navigateToToday() {
+    setSelectedDateIso(todayIso);
     pushUrl({ date: todayIso });
+  }
+
+  function selectDate(iso: string) {
+    setSelectedDateIso(iso);
+    pushUrl({ date: iso });
+  }
+
+  function selectMonth(year: number, month0: number) {
+    const iso = isoDateOnlyParts(year, month0, 1);
+    setSelectedDateIso(iso);
+    setMonthPickerOpen(false);
+    pushUrl({ date: iso });
   }
 
   function pushUrl(patch: { area?: ServiceArea; date?: string; calendar?: string }) {
@@ -455,12 +458,12 @@ export function CalendariosView({
       toast.error("Selecione um serviço.");
       return;
     }
-    // Appointments are fixed 30-min slots. The service is metadata for the work
+    // Appointments use the tenant's configured slot size. Service duration is metadata
     // performed in that slot; its duration drives pricing/reporting but does not
     // expand the time block. Tenants who need longer services book consecutive
     // slots manually.
     const startDate = new Date(values.starts_at);
-    const endDate = new Date(startDate.getTime() + 30 * 60_000);
+    const endDate = new Date(startDate.getTime() + slotMinutes * 60_000);
 
     const fd = new FormData();
     fd.set("calendar_id", activeCalendarId);
@@ -618,7 +621,7 @@ export function CalendariosView({
             <div className="inline-flex rounded-md border border-zinc-200 bg-white p-1">
               {areas.map((a) => {
                 const active = a === activeArea;
-                const href = `/app/calendarios?area=${a}&date=${activeDateIso}`;
+                const href = `/app/calendarios?area=${a}&date=${selectedDateIso}`;
                 return (
                   <Link
                     key={a}
@@ -658,9 +661,18 @@ export function CalendariosView({
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <span className="min-w-0 flex-1 truncate text-center text-sm font-semibold text-zinc-950 sm:min-w-[10rem] sm:text-left sm:text-base">
-            {visibleMonthLabel}
-          </span>
+          <Button
+            variant="ghost"
+            className="min-w-0 flex-1 justify-center truncate px-2 text-sm font-semibold text-zinc-950 sm:min-w-[10rem] sm:justify-start sm:text-base"
+            onClick={() => {
+              setPickerYear(visibleYear);
+              setMonthPickerOpen(true);
+            }}
+            aria-label="Escolher mês e ano"
+          >
+            <CalendarDays className="size-4 shrink-0" />
+            <span className="truncate">{visibleMonthLabel}</span>
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -681,6 +693,41 @@ export function CalendariosView({
         </Button>
       </div>
 
+      <Dialog open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Escolher mês</DialogTitle>
+            <DialogDescription>Navegue pelo ano e selecione um mês.</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-between rounded-lg bg-zinc-50 p-2">
+            <Button variant="ghost" size="icon" onClick={() => setPickerYear((year) => year - 1)} aria-label="Ano anterior">
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="font-mono text-base font-semibold tabular-nums">{pickerYear}</span>
+            <Button variant="ghost" size="icon" onClick={() => setPickerYear((year) => year + 1)} aria-label="Próximo ano">
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {MONTH_LABELS.map((label, month0) => {
+              const active = pickerYear === visibleYear && month0 === visibleMonth0;
+              return (
+                <Button
+                  key={label}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  className="min-h-11"
+                  onClick={() => selectMonth(pickerYear, month0)}
+                  aria-pressed={active}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Grid + day panel */}
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <Card className="overflow-hidden rounded-lg border-zinc-200 bg-white shadow-none">
@@ -698,12 +745,12 @@ export function CalendariosView({
             {gridCells.map((cell) => {
               const appts = appointmentsByDay[cell.iso] ?? [];
               const validAppts = appts.filter((a) => VALID_STATUSES.includes(a.status));
-              const isActive = cell.iso === activeDateIso;
+              const isActive = cell.iso === selectedDateIso;
               const firstAppt = validAppts[0];
               return (
                 <button
                   key={cell.iso}
-                  onClick={() => pushUrl({ date: cell.iso })}
+                  onClick={() => selectDate(cell.iso)}
                   className={
                     "flex h-14 min-w-0 flex-col gap-1 border-b border-r border-zinc-100 p-1.5 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-zinc-500 sm:h-28 sm:p-2 " +
                     (isActive
@@ -1030,7 +1077,7 @@ export function CalendariosView({
                   // Always render slots as 30-min anchors regardless of service
                   // duration. The engine already validated that the full service
                   // duration fits without overlap; the user picks a start anchor.
-                  const anchorEnd = new Date(slot.start.getTime() + 30 * 60_000);
+                  const anchorEnd = new Date(slot.start.getTime() + slotMinutes * 60_000);
                   return {
                     id: iso,
                     label: `${formatHHmm(iso, timeZone)} às ${formatHHmm(anchorEnd.toISOString(), timeZone)}`,

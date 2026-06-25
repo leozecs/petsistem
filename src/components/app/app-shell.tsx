@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Menu, ShieldCheck, Store } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/app/auth-actions";
 import type { SessionContext } from "@/lib/auth/session";
 import { PetsistemLogo } from "@/components/brand/logo";
+import { isLightBackground } from "@/lib/color";
 
 type ShellVariant = "admin" | "tenant";
 type ActivePetshop = NonNullable<SessionContext["activeMembership"]>["petshop"];
@@ -36,13 +37,6 @@ function roleLabel(session: SessionContext, variant: ShellVariant): string {
   if (role === "attendant") return "Atendente";
   if (role === "veterinarian") return "Veterinário";
   return "Acesso";
-}
-
-function isLightColor(hex: string): boolean {
-  const red = Number.parseInt(hex.slice(1, 3), 16);
-  const green = Number.parseInt(hex.slice(3, 5), 16);
-  const blue = Number.parseInt(hex.slice(5, 7), 16);
-  return (red * 299 + green * 587 + blue * 114) / 1000 >= 150;
 }
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -178,7 +172,7 @@ function SidebarContent({ session, variant, mobile = false, onNavigate }: { sess
   const sidebarBg = tenantColor && /^#[0-9a-fA-F]{6}$/.test(tenantColor)
     ? tenantColor
     : "#09090b"; // zinc-950
-  const lightNavigation = isLightColor(sidebarBg);
+  const lightNavigation = isLightBackground(sidebarBg);
 
   return (
     <div className="flex h-full flex-col bg-zinc-950 text-white">
@@ -187,8 +181,8 @@ function SidebarContent({ session, variant, mobile = false, onNavigate }: { sess
       </div>
 
       <nav
-        className={cn("flex-1 p-3", mobile ? "grid auto-rows-min grid-cols-2 content-start gap-2 overflow-y-auto" : "space-y-1 overflow-y-auto")}
-        style={{ backgroundColor: sidebarBg }}
+        className={cn("flex-1 px-3 py-8", mobile ? "grid auto-rows-min grid-cols-2 content-start gap-2 overflow-y-auto" : "space-y-1 overflow-y-auto")}
+        style={{ background: `linear-gradient(to bottom, #09090b 0, ${sidebarBg} 2.5rem, ${sidebarBg} calc(100% - 2.5rem), #09090b 100%)` }}
       >
         {nav.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -234,6 +228,31 @@ export function AppShell({
   variant?: ShellVariant;
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const routes = navigationForSession(session).map((item) => item.href);
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const prefetch = () => {
+      routes.forEach((route, index) => {
+        timers.push(setTimeout(() => {
+          if (!cancelled) router.prefetch(route);
+        }, index * 140));
+      });
+    };
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const idleId = idleWindow.requestIdleCallback?.(prefetch, { timeout: 1_500 });
+    if (idleId === undefined) timers.push(setTimeout(prefetch, 800));
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
+    };
+  }, [router, session]);
   return (
     <TooltipProvider>
       <div className="min-h-[100dvh] bg-zinc-100 text-zinc-950">

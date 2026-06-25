@@ -319,7 +319,7 @@ export function ClientesPetsManager({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="max-h-[calc(100dvh-15rem)] space-y-3 overflow-y-auto overscroll-contain pr-1 pb-2">
           {filtered.map((c) => {
             const isOpen = expanded.has(c.id);
             return (

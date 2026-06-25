@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowUpRight,
-  Check,
-  Minus,
 } from "lucide-react";
 import { PetsistemLogo } from "@/components/brand/logo";
+import { PricingPlans, type MarketingPlan } from "@/components/marketing/pricing-plans";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata: Metadata = {
@@ -13,23 +12,6 @@ export const metadata: Metadata = {
   description:
     "Sistema feito pra petshop e clínica veterinária. Agenda online no seu site, painel pro time, financeiro pronto e prontuário do bichinho num só lugar.",
 };
-
-type PlanLite = {
-  code: string;
-  name: string;
-  priceCents: number;
-  maxUsers: number;
-  allowsVet: boolean;
-  description: string | null;
-};
-
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 0,
-  });
-}
 
 // Exemplos de uso do produto. Cada bloco mostra um momento concreto do dia.
 const dayMoments = [
@@ -105,8 +87,14 @@ const faqs = [
   },
 ];
 
+const DEFAULT_PLANS: MarketingPlan[] = [
+  { code: "starter", name: "Starter", priceCents: 4_999, maxUsers: 2, allowsVet: false, description: "Até 2 usuários para organizar agenda, tutores e financeiro." },
+  { code: "profissional", name: "Profissional", priceCents: 9_999, maxUsers: 5, allowsVet: true, description: "Até 5 usuários com agenda veterinária e prontuário." },
+  { code: "premium", name: "Premium", priceCents: 13_999, maxUsers: 12, allowsVet: true, description: "Até 12 usuários para operações com equipes maiores." },
+];
+
 export default async function MarketingPage() {
-  let plans: PlanLite[] = [];
+  let plans: MarketingPlan[] = DEFAULT_PLANS;
   const admin = createAdminClient();
   if (admin) {
     const { data } = await admin
@@ -114,7 +102,7 @@ export default async function MarketingPage() {
       .select("code, name, price_cents, max_users, allows_veterinarian, description")
       .eq("active", true)
       .order("price_cents");
-    plans = (data ?? []).map((p) => ({
+    const databasePlans = (data ?? []).map((p) => ({
       code: p.code,
       name: p.name,
       priceCents: p.price_cents,
@@ -122,6 +110,7 @@ export default async function MarketingPage() {
       allowsVet: p.allows_veterinarian,
       description: p.description,
     }));
+    if (databasePlans.length > 0) plans = databasePlans;
   }
   const recommendedIdx = plans.length >= 2 ? 1 : 0;
 
@@ -449,146 +438,7 @@ export default async function MarketingPage() {
               </p>
             </div>
 
-            {plans.length === 0 ? (
-              <p className="text-sm text-zinc-500">Planos em breve.</p>
-            ) : (
-              <div className="grid items-stretch gap-4 sm:grid-cols-3">
-                {plans.map((p, i) => {
-                  const isRecommended = i === recommendedIdx;
-                  return (
-                    <div
-                      key={p.code}
-                      className={
-                        "relative flex flex-col rounded-2xl border p-6 transition " +
-                        (isRecommended
-                          ? "border-emerald-800/20 bg-emerald-800 text-[#f7f5ef] shadow-[0_24px_50px_-12px_rgba(6,78,59,0.35)] sm:-translate-y-4"
-                          : "border-zinc-200 bg-white text-zinc-950 hover:-translate-y-1")
-                      }
-                    >
-                      {isRecommended ? (
-                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#f7f5ef] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-900 shadow-sm">
-                          Mais escolhido
-                        </span>
-                      ) : null}
-
-                      <h3
-                        className="text-lg font-medium tracking-tight"
-                        style={{ fontFamily: "var(--font-bricolage)" }}
-                      >
-                        {p.name}
-                      </h3>
-
-                      <p
-                        className={
-                          "mt-1.5 min-h-[3.25rem] text-[12.5px] leading-5 " +
-                          (isRecommended ? "text-emerald-100" : "text-zinc-500")
-                        }
-                      >
-                        {p.description ?? ""}
-                      </p>
-
-                      <p className="mt-5 flex items-end gap-1 whitespace-nowrap">
-                        <span
-                          className="font-medium tracking-tight"
-                          style={{
-                            fontFamily: "var(--font-bricolage)",
-                            fontSize: "2rem",
-                            lineHeight: 1,
-                            fontVariationSettings: "'wdth' 90",
-                          }}
-                        >
-                          {formatBRL(p.priceCents)}
-                        </span>
-                        <span
-                          className={
-                            "pb-0.5 text-[12px] " +
-                            (isRecommended ? "text-emerald-100" : "text-zinc-500")
-                          }
-                        >
-                          /mês
-                        </span>
-                      </p>
-
-                      <ul
-                        className={
-                          "mt-6 flex-1 space-y-2.5 text-[13.5px] " +
-                          (isRecommended ? "text-emerald-50" : "text-zinc-700")
-                        }
-                      >
-                        <li className="flex items-start gap-2.5">
-                          <Check
-                            className={
-                              "mt-0.5 size-3.5 shrink-0 " +
-                              (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
-                            }
-                            strokeWidth={3}
-                          />
-                          <span>Até {p.maxUsers} pessoas usando</span>
-                        </li>
-                        <li className="flex items-start gap-2.5">
-                          <Check
-                            className={
-                              "mt-0.5 size-3.5 shrink-0 " +
-                              (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
-                            }
-                            strokeWidth={3}
-                          />
-                          <span>Agenda online no seu link</span>
-                        </li>
-                        <li className="flex items-start gap-2.5">
-                          <Check
-                            className={
-                              "mt-0.5 size-3.5 shrink-0 " +
-                              (isRecommended ? "text-[#f7f5ef]" : "text-emerald-800")
-                            }
-                            strokeWidth={3}
-                          />
-                          <span>Caixa do dia e relatório do mês</span>
-                        </li>
-                        <li
-                          className={
-                            "flex items-start gap-2.5 " +
-                            (p.allowsVet
-                              ? ""
-                              : isRecommended
-                                ? "opacity-60"
-                                : "text-zinc-400")
-                          }
-                        >
-                          {p.allowsVet ? (
-                            <Check
-                              className={
-                                "mt-0.5 size-3.5 shrink-0 " +
-                                (isRecommended
-                                  ? "text-[#f7f5ef]"
-                                  : "text-emerald-800")
-                              }
-                              strokeWidth={3}
-                            />
-                          ) : (
-                            <Minus className="mt-0.5 size-3.5 shrink-0" strokeWidth={3} />
-                          )}
-                          <span>Agenda do veterinário e prontuário</span>
-                        </li>
-                      </ul>
-
-                      <Link
-                        href={`/signup?plan=${p.code}`}
-                        className={
-                          "mt-8 inline-flex w-full items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition " +
-                          (isRecommended
-                            ? "bg-[#f7f5ef] text-emerald-900 hover:bg-white"
-                            : "bg-zinc-950 text-[#f7f5ef] hover:bg-zinc-800")
-                        }
-                      >
-                        Começar
-                        <ArrowUpRight className="size-3.5" />
-                      </Link>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <PricingPlans plans={plans} recommendedIndex={recommendedIdx} />
           </div>
         </div>
       </section>

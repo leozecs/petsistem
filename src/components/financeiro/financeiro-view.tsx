@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
+  ListFilter,
   Plus,
   Trash2,
   TrendingDown,
@@ -118,11 +119,19 @@ export function FinanceiroView({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "revenue" | "expense">("all");
+  const [allMovementsOpen, setAllMovementsOpen] = useState(false);
+  const [movementPeriod, setMovementPeriod] = useState("all");
 
   const filtered = useMemo(
     () => (filter === "all" ? movements : movements.filter((m) => m.kind === filter)),
     [movements, filter],
   );
+  const periodOptions = useMemo(() => Array.from(new Set(movements.map((movement) => movement.occurredAt.slice(0, 7)))).sort().reverse(), [movements]);
+  const dialogMovements = useMemo(
+    () => filtered.filter((movement) => movementPeriod === "all" || movement.occurredAt.slice(0, 7) === movementPeriod),
+    [filtered, movementPeriod],
+  );
+  const recentMovements = filtered.slice(0, 10);
 
   return (
     <div className="space-y-6">
@@ -161,7 +170,7 @@ export function FinanceiroView({
       <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
         <CardContent className="p-0">
           <div className="flex items-center justify-between border-b border-zinc-200 p-4">
-            <p className="text-sm font-semibold text-zinc-900">Movimentações do semestre</p>
+            <div><p className="text-sm font-semibold text-zinc-900">Últimos 10 lançamentos</p><p className="text-xs text-zinc-500">Período selecionado no gráfico</p></div>
             <div className="inline-flex rounded-md border border-zinc-200 bg-zinc-50 p-0.5">
               {(
                 [
@@ -186,19 +195,55 @@ export function FinanceiroView({
               ))}
             </div>
           </div>
-          {filtered.length === 0 ? (
+          {recentMovements.length === 0 ? (
             <p className="p-8 text-center text-sm text-zinc-500">
               Nenhuma movimentação no período.
             </p>
           ) : (
-            <ul className="divide-y divide-zinc-100">
-              {filtered.map((m) => (
+            <ul className="max-h-[42rem] divide-y divide-zinc-100 overflow-y-auto overscroll-contain">
+              {recentMovements.map((m) => (
                 <MovementRow key={m.id} m={m} canDelete={canDelete} />
               ))}
             </ul>
           )}
+          {filtered.length > 10 ? (
+            <div className="border-t border-zinc-200 p-3 text-center">
+              <Button variant="outline" onClick={() => setAllMovementsOpen(true)}>
+                <ListFilter className="size-4" />
+                Ver todos os {filtered.length} lançamentos
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
+
+      <Dialog open={allMovementsOpen} onOpenChange={setAllMovementsOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Todos os lançamentos</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-1.5">
+              <Label>Filtrar mês e ano</Label>
+              <Select
+                items={{ all: "Todos os períodos", ...Object.fromEntries(periodOptions.map((period) => [period, new Date(`${period}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })])) }}
+                value={movementPeriod}
+                onValueChange={(value) => setMovementPeriod(value ?? "all")}
+              >
+                <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os períodos</SelectItem>
+                  {periodOptions.map((period) => <SelectItem key={period} value={period}>{new Date(`${period}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-zinc-500">{dialogMovements.length} lançamento{dialogMovements.length === 1 ? "" : "s"}</p>
+          </div>
+          <div className="max-h-[60vh] overflow-y-auto overscroll-contain rounded-lg border border-zinc-200">
+            {dialogMovements.length === 0 ? <p className="p-8 text-center text-sm text-zinc-500">Sem lançamentos neste período.</p> : <ul className="divide-y divide-zinc-100">{dialogMovements.map((movement) => <MovementRow key={movement.id} m={movement} canDelete={canDelete} />)}</ul>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
