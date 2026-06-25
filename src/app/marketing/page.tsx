@@ -13,6 +13,8 @@ export const metadata: Metadata = {
     "Sistema feito pra petshop e clínica veterinária. Agenda online no seu site, painel pro time, financeiro pronto e prontuário do bichinho num só lugar.",
 };
 
+export const dynamic = "force-dynamic";
+
 // Exemplos de uso do produto. Cada bloco mostra um momento concreto do dia.
 const dayMoments = [
   {
