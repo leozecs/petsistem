@@ -8,8 +8,24 @@ export const metadata: Metadata = {
 export default async function SignupSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ email?: string }>;
+  searchParams: Promise<{
+    email?: string;
+    mode?: string;
+    shop?: string;
+    plan?: string;
+    amount?: string;
+    billing?: string;
+  }>;
 }) {
-  const { email } = await searchParams;
-  return <SignupSuccess email={email ?? ""} />;
+  const params = await searchParams;
+  return (
+    <SignupSuccess
+      email={params.email ?? ""}
+      mode={params.mode === "paid" ? "paid" : "trial"}
+      shopName={params.shop ?? ""}
+      planName={params.plan ?? ""}
+      amountCents={Number(params.amount ?? 0)}
+      billing={params.billing === "annual" ? "annual" : "monthly"}
+    />
+  );
 }

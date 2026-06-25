@@ -146,12 +146,12 @@ export default async function MarketingPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="hidden rounded-full px-3 py-1.5 text-sm font-medium text-zinc-300 transition hover:text-white sm:inline-flex"
+              className="inline-flex rounded-full px-2 py-1.5 text-sm font-medium text-zinc-300 transition hover:text-white sm:px-3"
             >
               Entrar
             </Link>
             <Link
-              href="/signup"
+              href="/signup?mode=trial"
               className="inline-flex items-center gap-1.5 rounded-full bg-[#f7f5ef] px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-white"
             >
               Criar grátis
@@ -199,7 +199,7 @@ export default async function MarketingPage() {
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <Link
-                href="/signup"
+                href="/signup?mode=trial"
                 className="group inline-flex items-center gap-2 rounded-full bg-emerald-800 px-5 py-3 text-sm font-semibold text-[#f7f5ef] transition hover:bg-emerald-900"
               >
                 Começar de graça por 7 dias
@@ -347,7 +347,7 @@ export default async function MarketingPage() {
                 usa e deixou só o que aparece no balcão.
               </p>
               <Link
-                href="/signup"
+                href="/signup?mode=trial"
                 className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 hover:text-emerald-900"
               >
                 Ver na prática
@@ -528,7 +528,7 @@ export default async function MarketingPage() {
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link
-              href="/signup"
+              href="/signup?mode=trial"
               className="inline-flex items-center gap-2 rounded-full bg-[#f7f5ef] px-6 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-white"
             >
               Criar minha loja grátis

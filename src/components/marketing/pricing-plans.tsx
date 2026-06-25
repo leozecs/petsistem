@@ -153,7 +153,7 @@ export function PricingPlans({
               </ul>
 
               <Link
-                href={`/signup?plan=${plan.code}&billing=${annual ? "annual" : "monthly"}`}
+                href={`/signup?mode=paid&plan=${plan.code}&billing=${annual ? "annual" : "monthly"}`}
                 className={cn(
                   "mt-8 inline-flex w-full items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition",
                   isRecommended ? "bg-[#f7f5ef] text-emerald-900 hover:bg-white" : "bg-zinc-950 text-[#f7f5ef] hover:bg-zinc-800",

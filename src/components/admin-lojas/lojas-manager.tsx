@@ -361,7 +361,7 @@ export function LojasManager({
                     <TableHead>Subdomínio</TableHead>
                     <TableHead>Plano</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Criada em</TableHead>
+                    <TableHead>Data de início</TableHead>
                     <TableHead className="text-right">Abrir</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -419,7 +419,7 @@ export function LojasManager({
               <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                 <span>{drawerShop.plan_name}</span>
                 <span>·</span>
-                <span>{BR_DATE.format(new Date(drawerShop.created_at))}</span>
+                <span>Início: {BR_DATE.format(new Date(drawerShop.created_at))}</span>
                 <span className="ml-auto">
                   <StatusPill tone={statusTone(drawerShop.status)}>
                     {STATUS_LABEL[drawerShop.status]}
