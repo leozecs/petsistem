@@ -29,12 +29,24 @@ export default async function AdminUsuariosPage({
   const q = (params.q ?? "").trim();
   const petshopId = (params.petshop ?? "").trim();
 
-  // Load petshops for the filter dropdown.
-  const { data: petshopsData } = await admin
+  // Filter options and membership scope are independent, so fetch both in
+  // parallel. This removes one full network round-trip from filtered views.
+  const petshopsQuery = admin
     .from("petshops")
     .select("id, name")
     .is("deleted_at", null)
     .order("name");
+  const membersQuery = petshopId
+    ? admin
+        .from("memberships")
+        .select("user_id")
+        .eq("petshop_id", petshopId)
+        .is("deleted_at", null)
+    : Promise.resolve({ data: null });
+  const [{ data: petshopsData }, { data: members }] = await Promise.all([
+    petshopsQuery,
+    membersQuery,
+  ]);
   const petshops: PetshopOption[] = (petshopsData ?? []).map((p) => ({
     id: p.id,
     name: p.name,
@@ -44,11 +56,6 @@ export default async function AdminUsuariosPage({
   // search by name/email.
   let userIds: string[] | null = null;
   if (petshopId) {
-    const { data: members } = await admin
-      .from("memberships")
-      .select("user_id")
-      .eq("petshop_id", petshopId)
-      .is("deleted_at", null);
     userIds = (members ?? []).map((m) => m.user_id);
     if (userIds.length === 0) {
       return (

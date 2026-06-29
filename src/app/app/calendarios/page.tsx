@@ -122,7 +122,6 @@ export default async function CalendariosPage({
           .select("weekday, starts_at, ends_at, active")
           .eq("petshop_id", membership.petshopId)
           .eq("calendar_id", calendarHint)
-          .eq("active", true)
       : Promise.resolve({ data: null, error: null }),
     calendarHint
       ? supabase
@@ -165,8 +164,7 @@ export default async function CalendariosPage({
         .from("schedules")
         .select("weekday, starts_at, ends_at, active")
         .eq("petshop_id", membership.petshopId)
-        .eq("calendar_id", activeCalendar.id)
-        .eq("active", true),
+        .eq("calendar_id", activeCalendar.id),
       supabase
         .from("appointments")
         .select(

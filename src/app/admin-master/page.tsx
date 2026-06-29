@@ -104,7 +104,7 @@ export default async function AdminMasterPage() {
         description="Snapshot da plataforma toda: lojas ativas, usuários e agendamentos do mês."
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
@@ -170,7 +170,33 @@ export default async function AdminMasterPage() {
               .
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="space-y-3 md:hidden">
+              {recent.map((petshop) => (
+                <Link
+                  key={petshop.id}
+                  href="/admin-master/lojas"
+                  className="block rounded-lg border border-zinc-200 bg-zinc-50/70 p-4 transition hover:border-zinc-300 hover:bg-zinc-50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-zinc-950">{petshop.name}</p>
+                      <p className="mt-1 truncate font-mono text-xs text-zinc-500">
+                        {petshop.subdomain}.{ROOT_DOMAIN}
+                      </p>
+                    </div>
+                    <StatusPill tone={statusTone(petshop.status as PetshopStatus)}>
+                      {STATUS_LABEL[petshop.status as PetshopStatus]}
+                    </StatusPill>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
+                    <span>{petshop.plan_name}</span>
+                    <span>{BR_DATE.format(new Date(petshop.created_at))}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div className="hidden md:block">
               <Table className="min-w-[640px]">
                 <TableHeader>
                   <TableRow>
@@ -204,6 +230,7 @@ export default async function AdminMasterPage() {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

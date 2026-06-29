@@ -34,7 +34,7 @@ export default async function StorefrontPage({
   const { data: petshop } = await admin
     .from("petshops")
     .select(
-      "id, name, slug, subdomain, status, primary_color, address, phone, logo_path",
+      "id, name, slug, subdomain, status, primary_color, address, phone, logo_path, slot_minutes",
     )
     .or(`slug.eq.${slug},subdomain.eq.${slug}`)
     .is("deleted_at", null)
@@ -76,6 +76,7 @@ export default async function StorefrontPage({
       address={petshop.address ?? null}
       phone={petshop.phone ?? null}
       logoUrl={logoUrl}
+      slotMinutes={petshop.slot_minutes ?? 30}
     />
   );
 }

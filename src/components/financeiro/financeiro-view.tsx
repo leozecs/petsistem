@@ -1,20 +1,16 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
-  Calendar,
-  CalendarRange,
-  CalendarClock,
-  CircleDollarSign,
-  Clock,
+  ListFilter,
   Plus,
-  Receipt,
   Trash2,
   TrendingDown,
   TrendingUp,
-  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -42,20 +38,21 @@ import {
   deleteRevenueItem,
 } from "@/app/app/financeiro/actions";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { FinanceChartPoint } from "@/components/financeiro/finance-chart";
+
+const FinanceChart = dynamic(
+  () => import("@/components/financeiro/finance-chart").then((module) => module.FinanceChart),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-64 w-full sm:h-80" />,
+  },
+);
 
 type PaymentMethod = "pix" | "cash" | "card" | "transfer" | "other";
+const PAYMENT_METHOD_ITEMS = { pix: "Pix", cash: "Dinheiro", card: "Cartão", transfer: "Transferência", other: "Outro" };
 
-export type Kpis = {
-  receitaHoje: number;
-  receitaSemana: number;
-  receitaMes: number;
-  despesaMes: number;
-  saldoMes: number;
-  ticketMedio: number;
-  aReceber: number;
-  aPagar: number;
-  atendimentosPagosMes: number;
-};
+export type { FinanceChartPoint } from "@/components/financeiro/finance-chart";
 
 export type Movement = {
   id: string;
@@ -102,24 +99,39 @@ function pmLabel(pm: string | null): string {
 }
 
 export function FinanceiroView({
-  kpis,
+  chart,
   movements,
   categories,
   todayIso,
   canDelete,
+  selectedYear,
+  selectedSemester,
+  availableYears,
 }: {
-  kpis: Kpis;
+  chart: FinanceChartPoint[];
   movements: Movement[];
   categories: CategoryOption[];
   todayIso: string;
   canDelete: boolean;
+  selectedYear: number;
+  selectedSemester: 1 | 2;
+  availableYears: number[];
 }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "revenue" | "expense">("all");
+  const [allMovementsOpen, setAllMovementsOpen] = useState(false);
+  const [movementPeriod, setMovementPeriod] = useState("all");
 
   const filtered = useMemo(
     () => (filter === "all" ? movements : movements.filter((m) => m.kind === filter)),
     [movements, filter],
   );
+  const periodOptions = useMemo(() => Array.from(new Set(movements.map((movement) => movement.occurredAt.slice(0, 7)))).sort().reverse(), [movements]);
+  const dialogMovements = useMemo(
+    () => filtered.filter((movement) => movementPeriod === "all" || movement.occurredAt.slice(0, 7) === movementPeriod),
+    [filtered, movementPeriod],
+  );
+  const recentMovements = filtered.slice(0, 10);
 
   return (
     <div className="space-y-6">
@@ -127,8 +139,7 @@ export function FinanceiroView({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Financeiro</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Receitas, despesas e fluxo do mês corrente. Receita de atendimento entra automática ao
-            finalizar o agendamento. O resto você lança aqui.
+            Faturamento, despesas e lucro do semestre. Receitas de atendimento entram automaticamente.
           </p>
         </div>
         <div className="flex gap-2">
@@ -143,66 +154,23 @@ export function FinanceiroView({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          icon={Calendar}
-          tone="emerald"
-          label="Receita hoje"
-          value={brl(kpis.receitaHoje)}
-        />
-        <KpiCard
-          icon={CalendarRange}
-          tone="emerald"
-          label="Receita da semana"
-          value={brl(kpis.receitaSemana)}
-        />
-        <KpiCard
-          icon={CalendarClock}
-          tone="emerald"
-          label="Receita do mês"
-          value={brl(kpis.receitaMes)}
-          sub={`${kpis.atendimentosPagosMes} atend. pagos`}
-        />
-        <KpiCard
-          icon={CircleDollarSign}
-          tone="emerald"
-          label="Ticket médio"
-          value={brl(kpis.ticketMedio)}
-          sub="por atendimento pago"
-        />
-        <KpiCard
-          icon={TrendingDown}
-          tone="rose"
-          label="Despesa paga no mês"
-          value={brl(kpis.despesaMes)}
-        />
-        <KpiCard
-          icon={Clock}
-          tone="amber"
-          label="A pagar"
-          value={brl(kpis.aPagar)}
-          sub="despesas em aberto"
-        />
-        <KpiCard
-          icon={Receipt}
-          tone="amber"
-          label="A receber"
-          value={brl(kpis.aReceber)}
-          sub="atendimentos sem pgto"
-        />
-        <KpiCard
-          icon={Wallet}
-          tone={kpis.saldoMes >= 0 ? "emerald" : "rose"}
-          label="Saldo do mês"
-          value={brl(kpis.saldoMes)}
-          sub="receita − despesa paga"
-        />
-      </div>
+      <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
+        <CardContent className="p-5">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-sm font-semibold text-zinc-900">Resultado semestral</p><p className="text-xs text-zinc-500">Valores mensais em reais</p></div>
+            <div className="flex gap-2">
+              <Select items={Object.fromEntries(availableYears.map((year) => [String(year), String(year)]))} value={String(selectedYear)} onValueChange={(value) => router.push(`/app/financeiro?year=${value}&semester=${selectedSemester}`)}><SelectTrigger className="w-24"><SelectValue /></SelectTrigger><SelectContent>{availableYears.map((year) => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent></Select>
+              <Select items={{ "1": "1º semestre", "2": "2º semestre" }} value={String(selectedSemester)} onValueChange={(value) => router.push(`/app/financeiro?year=${selectedYear}&semester=${value}`)}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1º semestre</SelectItem><SelectItem value="2">2º semestre</SelectItem></SelectContent></Select>
+            </div>
+          </div>
+          <FinanceChart data={chart} />
+        </CardContent>
+      </Card>
 
       <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
         <CardContent className="p-0">
           <div className="flex items-center justify-between border-b border-zinc-200 p-4">
-            <p className="text-sm font-semibold text-zinc-900">Movimentações do mês</p>
+            <div><p className="text-sm font-semibold text-zinc-900">Últimos 10 lançamentos</p><p className="text-xs text-zinc-500">Período selecionado no gráfico</p></div>
             <div className="inline-flex rounded-md border border-zinc-200 bg-zinc-50 p-0.5">
               {(
                 [
@@ -227,61 +195,56 @@ export function FinanceiroView({
               ))}
             </div>
           </div>
-          {filtered.length === 0 ? (
+          {recentMovements.length === 0 ? (
             <p className="p-8 text-center text-sm text-zinc-500">
               Nenhuma movimentação no período.
             </p>
           ) : (
-            <ul className="divide-y divide-zinc-100">
-              {filtered.map((m) => (
+            <ul className="max-h-[42rem] divide-y divide-zinc-100 overflow-y-auto overscroll-contain">
+              {recentMovements.map((m) => (
                 <MovementRow key={m.id} m={m} canDelete={canDelete} />
               ))}
             </ul>
           )}
+          {filtered.length > 10 ? (
+            <div className="border-t border-zinc-200 p-3 text-center">
+              <Button variant="outline" onClick={() => setAllMovementsOpen(true)}>
+                <ListFilter className="size-4" />
+                Ver todos os {filtered.length} lançamentos
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
-    </div>
-  );
-}
 
-type Tone = "emerald" | "rose" | "amber";
-
-function KpiCard({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  tone: Tone;
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  const toneClasses: Record<Tone, string> = {
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    rose: "bg-rose-50 text-rose-700 border-rose-100",
-    amber: "bg-amber-50 text-amber-800 border-amber-100",
-  };
-  return (
-    <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2.5">
-          <div
-            className={cn(
-              "flex size-9 items-center justify-center rounded-lg border",
-              toneClasses[tone],
-            )}
-          >
-            <Icon className="size-4" />
+      <Dialog open={allMovementsOpen} onOpenChange={setAllMovementsOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Todos os lançamentos</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-1.5">
+              <Label>Filtrar mês e ano</Label>
+              <Select
+                items={{ all: "Todos os períodos", ...Object.fromEntries(periodOptions.map((period) => [period, new Date(`${period}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })])) }}
+                value={movementPeriod}
+                onValueChange={(value) => setMovementPeriod(value ?? "all")}
+              >
+                <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os períodos</SelectItem>
+                  {periodOptions.map((period) => <SelectItem key={period} value={period}>{new Date(`${period}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-zinc-500">{dialogMovements.length} lançamento{dialogMovements.length === 1 ? "" : "s"}</p>
           </div>
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
-        </div>
-        <p className="mt-3 font-mono text-xl font-semibold tabular-nums text-zinc-900">{value}</p>
-        {sub ? <p className="mt-0.5 text-[11px] text-zinc-500">{sub}</p> : null}
-      </CardContent>
-    </Card>
+          <div className="max-h-[60vh] overflow-y-auto overscroll-contain rounded-lg border border-zinc-200">
+            {dialogMovements.length === 0 ? <p className="p-8 text-center text-sm text-zinc-500">Sem lançamentos neste período.</p> : <ul className="divide-y divide-zinc-100">{dialogMovements.map((movement) => <MovementRow key={movement.id} m={movement} canDelete={canDelete} />)}</ul>}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
@@ -443,6 +406,7 @@ function AddRevenueDialog({
             <div className="space-y-1.5">
               <Label>Pagamento</Label>
               <Select
+                items={PAYMENT_METHOD_ITEMS}
                 value={form.payment_method}
                 onValueChange={(v) => setForm({ ...form, payment_method: v as PaymentMethod })}
               >
@@ -461,6 +425,7 @@ function AddRevenueDialog({
             <div className="space-y-1.5">
               <Label>Categoria</Label>
               <Select
+                items={{ none: "Sem categoria", ...Object.fromEntries(categories.map((category) => [category.id, category.name])) }}
                 value={form.category_id || "none"}
                 onValueChange={(v) =>
                   setForm({ ...form, category_id: v === "none" || v == null ? "" : v })
@@ -596,6 +561,7 @@ function AddExpenseDialog({
             <div className="space-y-1.5">
               <Label>Categoria</Label>
               <Select
+                items={{ none: "Sem categoria", ...Object.fromEntries(categories.map((category) => [category.id, category.name])) }}
                 value={form.category_id || "none"}
                 onValueChange={(v) =>
                   setForm({ ...form, category_id: v === "none" || v == null ? "" : v })
@@ -617,6 +583,7 @@ function AddExpenseDialog({
             <div className="space-y-1.5">
               <Label>Pagamento</Label>
               <Select
+                items={PAYMENT_METHOD_ITEMS}
                 value={form.payment_method}
                 onValueChange={(v) => setForm({ ...form, payment_method: v as PaymentMethod })}
                 disabled={!form.paid}

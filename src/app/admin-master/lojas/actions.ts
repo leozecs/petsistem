@@ -174,6 +174,17 @@ export async function createPetshopWithOwner(
     return { ok: false, error: profErr.message };
   }
 
+  const { data: starterPlan, error: planError } = await admin
+    .from("plans")
+    .select("id, name, price_cents")
+    .eq("code", "starter")
+    .eq("active", true)
+    .single();
+  if (planError || !starterPlan) {
+    await rollbackAuth();
+    return { ok: false, error: "Plano inicial não está configurado." };
+  }
+
   // 3) petshops row (slug + subdomain iguais por default)
   const { data: petshop, error: shopErr } = await admin
     .from("petshops")
@@ -183,7 +194,8 @@ export async function createPetshopWithOwner(
       subdomain: parsed.data.subdomain,
       address: parsed.data.address ?? null,
       status: "active",
-      plan_name: "Essencial",
+      plan_id: starterPlan.id,
+      plan_name: starterPlan.name,
       primary_color: "#0b0b0c",
       settings: {},
       created_by: adminUserId,
@@ -211,7 +223,7 @@ export async function createPetshopWithOwner(
   }
 
   // 5) calendários default (Banho e Tosa + Veterinária)
-  await admin.from("calendars").insert([
+  const { error: calendarError } = await admin.from("calendars").insert([
     {
       petshop_id: petshop.id,
       area: "grooming",
@@ -227,6 +239,28 @@ export async function createPetshopWithOwner(
       created_by: adminUserId,
     },
   ]);
+  if (calendarError) {
+    await admin.from("petshops").delete().eq("id", petshop.id);
+    await rollbackAuth();
+    return { ok: false, error: calendarError.message };
+  }
+
+  // 6) A loja já nasce com cobrança vinculada ao plano inicial.
+  const dueDate = new Date();
+  dueDate.setUTCDate(dueDate.getUTCDate() + 30);
+  const { error: subscriptionError } = await admin.from("subscriptions").insert({
+    petshop_id: petshop.id,
+    plan_name: starterPlan.name,
+    amount_cents: starterPlan.price_cents,
+    due_date: dueDate.toISOString().slice(0, 10),
+    status: "pending",
+    created_by: adminUserId,
+  });
+  if (subscriptionError) {
+    await admin.from("petshops").delete().eq("id", petshop.id);
+    await rollbackAuth();
+    return { ok: false, error: subscriptionError.message };
+  }
 
   revalidatePath("/admin-master/lojas");
   revalidatePath("/admin-master");

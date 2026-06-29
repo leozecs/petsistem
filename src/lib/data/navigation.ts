@@ -2,7 +2,7 @@ import {
   Activity,
   Bell,
   CalendarCheck,
-  ClipboardCheck,
+  CalendarRange,
   CreditCard,
   FileBarChart,
   Clock,
@@ -11,7 +11,6 @@ import {
   Scissors,
   Settings,
   Store,
-  Stethoscope,
   Tags,
   Users,
   UserCog,
@@ -35,15 +34,18 @@ export const adminMasterNav: NavItem[] = [
   { href: "/admin-master/configuracoes", label: "Configurações", icon: Settings },
 ];
 
-// Ordem owner: Dashboard, Calendários, Atendimentos (grooming + checklist),
-// Serviços, Tutores & Pets, Funcionários (engloba vet — merge pendente),
-// Financeiro, Horários, Categorias, Assinatura, Configurações.
-// Veterinários sai do menu — merge do CRUD com funcionários virá em fase
-// dedicada; a rota /app/veterinarios continua funcional pra compat.
+// Ordem owner (definida pelo Leonardo):
+//   Dashboard, Calendários, Atendimentos, Consultas, Serviços,
+//   Tutores & Pets, Funcionários, Financeiro, Horários, Categorias,
+//   Assinatura, Configurações.
+// Veterinários fica fora do menu — o CRUD foi mesclado em Funcionários
+// (definir perfil Atendente | Veterinário no formulário). A rota
+// /app/veterinarios continua existindo pra compat até a remoção formal.
 export const ownerNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
   { href: "/app/calendarios", label: "Calendários", icon: CalendarCheck },
-  { href: "/app/checklist", label: "Atendimentos", icon: ClipboardCheck },
+  { href: "/app/atendimentos", label: "Atendimentos", icon: CalendarRange },
+  { href: "/app/consultas", label: "Consultas", icon: HeartPulse },
   { href: "/app/servicos", label: "Serviços", icon: Scissors },
   { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
   { href: "/app/funcionarios", label: "Funcionários", icon: UserCog },
@@ -57,14 +59,14 @@ export const ownerNav: NavItem[] = [
 export const attendantNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
   { href: "/app/calendarios", label: "Calendários", icon: CalendarCheck },
-  { href: "/app/checklist", label: "Atendimentos", icon: ClipboardCheck },
+  { href: "/app/atendimentos", label: "Atendimentos", icon: CalendarRange },
   { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
   { href: "/app/financeiro", label: "Financeiro", icon: Receipt },
 ];
 
 export const veterinarianNav: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: Activity },
-  { href: "/app/calendarios", label: "Consultas", icon: HeartPulse },
+  { href: "/app/consultas", label: "Consultas", icon: HeartPulse },
   { href: "/app/clientes", label: "Tutores & Pets", icon: Users },
 ];
 

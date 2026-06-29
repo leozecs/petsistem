@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { CheckCircle2, PenLine, Plus, Stethoscope, Trash2, Users } from "lucide-react";
+import { PenLine, Plus, Stethoscope, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -146,12 +146,12 @@ export function PlanosManager({
     });
   }
 
-  function handleDeactivate(p: PlanRow) {
-    if (!confirm(`Desativar o plano ${p.name}? Lojas existentes mantêm o plano até trocarem.`)) return;
+  function handleDelete(p: PlanRow) {
+    if (!confirm(`Excluir permanentemente o plano ${p.name}? Esta ação não pode ser desfeita.`)) return;
     startTransition(async () => {
       const result = await deletePlan(p.id);
       if (result.ok) {
-        toast.success("Plano desativado");
+        toast.success("Plano excluído permanentemente");
         router.refresh();
       } else {
         toast.error(result.error ?? "Erro");
@@ -236,19 +236,16 @@ export function PlanosManager({
                           >
                             <PenLine className="size-4" />
                           </Button>
-                          {p.active ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeactivate(p)}
-                              disabled={pending}
-                              className="rounded-md border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          ) : (
-                            <CheckCircle2 className="ml-2 size-4 text-zinc-400" />
-                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(p)}
+                            disabled={pending}
+                            title="Excluir permanentemente"
+                            className="rounded-md border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>

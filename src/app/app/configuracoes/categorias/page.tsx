@@ -16,6 +16,7 @@ export default async function CategoriasPage() {
     .from("categories")
     .select("id, kind, name, description, position, active")
     .eq("petshop_id", membership.petshopId)
+    .eq("active", true)
     .order("kind")
     .order("position")
     .order("name");

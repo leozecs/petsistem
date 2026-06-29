@@ -13,7 +13,9 @@ import { computeAvailability, effectiveSchedules } from "@/lib/calendar/availabi
 import {
   addMinutes,
   formatHHmmInPetshopTz,
+  parseTimeOfDayToMinutes,
   petshopDateOf,
+  petshopWeekday,
   utcInstantOfPetshopDateTime,
   utcInstantOfPetshopMidnight,
 } from "@/lib/calendar/time";
@@ -40,9 +42,7 @@ const slotsSchema = z.object({
 });
 
 /**
- * Retorna anchors de 30-min livres no dia pra área da loja. Reutiliza o mesmo
- * pipeline do app (effectiveSchedules + computeAvailability), filtrando por
- * serviço pra garantir que o anchor cabe a duração necessária.
+ * Retorna slots livres usando exatamente o intervalo e os horários da loja.
  */
 export async function getPublicSlots(input: {
   slug: string;
@@ -75,7 +75,7 @@ export async function getPublicSlots(input: {
 
   const { data: petshop } = await admin
     .from("petshops")
-    .select("id, status, timezone")
+    .select("id, status, timezone, slot_minutes")
     .or(`slug.eq.${parsed.data.slug},subdomain.eq.${parsed.data.slug}`)
     .is("deleted_at", null)
     .maybeSingle();
@@ -86,7 +86,7 @@ export async function getPublicSlots(input: {
 
   const { data: service } = await admin
     .from("services")
-    .select("id, duration_minutes")
+    .select("id")
     .eq("id", parsed.data.service_id)
     .eq("petshop_id", petshop.id)
     .eq("active", true)
@@ -114,8 +114,7 @@ export async function getPublicSlots(input: {
       .from("schedules")
       .select("weekday, starts_at, ends_at, active")
       .eq("calendar_id", calendar.id)
-      .eq("petshop_id", petshop.id)
-      .eq("active", true),
+      .eq("petshop_id", petshop.id),
     admin
       .from("appointments")
       .select("id, starts_at, ends_at, status")
@@ -151,28 +150,15 @@ export async function getPublicSlots(input: {
     status: a.status as AppStatus,
   }));
 
-  // Gera grade de 30 min e filtra por consecutivos livres pra duração do serviço.
+  const slotMinutes = petshop.slot_minutes ?? 30;
   const rawSlots = computeAvailability({
     petshopMidnightUtc: petshopMidnight,
     schedules,
     appointments,
-    slotDurationMin: 30,
-    stepMin: 30,
+    slotDurationMin: slotMinutes,
+    stepMin: slotMinutes,
   });
-  const slotsNeeded = Math.max(1, Math.ceil(service.duration_minutes / 30));
-  const bookable: Date[] = [];
-  for (let i = 0; i <= rawSlots.length - slotsNeeded; i++) {
-    const window = rawSlots.slice(i, i + slotsNeeded);
-    if (!window.every((s) => s.status === "free")) continue;
-    let contiguous = true;
-    for (let j = 0; j < window.length - 1; j++) {
-      if (window[j]!.end.getTime() !== window[j + 1]!.start.getTime()) {
-        contiguous = false;
-        break;
-      }
-    }
-    if (contiguous) bookable.push(window[0]!.start);
-  }
+  const bookable = rawSlots.filter((slot) => slot.status === "free").map((slot) => slot.start);
 
   // Devolve como "YYYY-MM-DDTHH:MM" no fuso configurado pela loja. O front
   // só exibe; o back reinterpreta o mesmo string na criação.
@@ -215,8 +201,6 @@ const bookingSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Horário inválido"),
   notes: z.string().trim().max(2000).optional(),
 });
-
-const SLOT_MINUTES = 30;
 
 function digits(s: string): string {
   return s.replace(/\D+/g, "");
@@ -291,7 +275,7 @@ export async function createPublicBooking(
   // 1) Resolver loja por slug ou subdomain
   const { data: petshop } = await admin
     .from("petshops")
-    .select("id, status, timezone")
+    .select("id, status, timezone, slot_minutes")
     .or(`slug.eq.${parsed.data.slug},subdomain.eq.${parsed.data.slug}`)
     .is("deleted_at", null)
     .maybeSingle();
@@ -326,6 +310,33 @@ export async function createPublicBooking(
     .maybeSingle();
   if (!calendar) {
     return { ok: false, error: "Calendário não configurado pra essa área." };
+  }
+
+  // Revalidate the selected slot server-side. UI availability is never the
+  // security/business boundary for a public booking.
+  const [datePart, timePart] = parsed.data.starts_at.split("T");
+  const [y, m, d] = datePart!.split("-").map(Number);
+  const [hh, mm] = timePart!.split(":").map(Number);
+  const timeZone = petshop.timezone ?? "America/Sao_Paulo";
+  const startUtc = utcInstantOfPetshopDateTime(y!, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0, timeZone);
+  const slotMinutes = petshop.slot_minutes ?? 30;
+  const endUtc = new Date(startUtc.getTime() + slotMinutes * 60_000);
+  const { data: scheduleRows } = await admin
+    .from("schedules")
+    .select("weekday, starts_at, ends_at, active")
+    .eq("petshop_id", petshop.id)
+    .eq("calendar_id", calendar.id);
+  const schedules = effectiveSchedules(scheduleRows ?? []);
+  const weekday = petshopWeekday(utcInstantOfPetshopMidnight(y!, (m ?? 1) - 1, d ?? 1, timeZone));
+  const startMinute = (hh ?? 0) * 60 + (mm ?? 0);
+  const insideWorkingHours = schedules.some((schedule) => {
+    if (!schedule.active || schedule.weekday !== weekday) return false;
+    const opensAt = parseTimeOfDayToMinutes(schedule.starts_at);
+    const closesAt = parseTimeOfDayToMinutes(schedule.ends_at);
+    return startMinute >= opensAt && startMinute + slotMinutes <= closesAt && (startMinute - opensAt) % slotMinutes === 0;
+  });
+  if (!insideWorkingHours) {
+    return { ok: false, error: "Horário fora do expediente configurado. Escolha outro horário." };
   }
 
   // 4) Find-or-create tutor por whatsapp (somente dígitos)
@@ -387,17 +398,7 @@ export async function createPublicBooking(
     petId = createdPet.id;
   }
 
-  // 6) Converter starts_at local usando o fuso configurado → UTC ISO.
-  const [datePart, timePart] = parsed.data.starts_at.split("T");
-  const [y, m, d] = datePart!.split("-").map(Number);
-  const [hh, mm] = timePart!.split(":").map(Number);
-  const startUtc = utcInstantOfPetshopDateTime(
-    y!, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0,
-    petshop.timezone ?? "America/Sao_Paulo",
-  );
-  const endUtc = new Date(startUtc.getTime() + SLOT_MINUTES * 60_000);
-
-  // 7) Criar appointment (status pending pra revisão do petshop)
+  // 6) Criar appointment (status pending pra revisão do petshop)
   const { data: appointment, error: apptErr } = await admin
     .from("appointments")
     .insert({

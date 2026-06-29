@@ -25,6 +25,76 @@ const toggleSchema = z.object({
 
 type Result = { ok: true } | { ok: false; error: string };
 
+const stepSchema = z.object({
+  service_id: z.string().uuid(),
+  label: z.string().trim().min(1, "Informe a etapa.").max(120),
+});
+const updateStepSchema = stepSchema.extend({ id: z.string().uuid() });
+
+async function validateChecklistService(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  petshopId: string,
+  role: string,
+  serviceId: string,
+) {
+  const { data } = await supabase
+    .from("services")
+    .select("id, area")
+    .eq("id", serviceId)
+    .eq("petshop_id", petshopId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  return data && allowedAreasForRole(role).includes(data.area);
+}
+
+export async function createChecklistStep(input: z.infer<typeof stepSchema>): Promise<Result> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant"])) return { ok: false, error: "Sem permissão." };
+  const parsed = stepSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+  if (!(await validateChecklistService(supabase, membership.petshopId, membership.role, parsed.data.service_id))) {
+    return { ok: false, error: "Serviço não pertence à área permitida." };
+  }
+  const { data: last } = await supabase.from("checklist_steps").select("position").eq("petshop_id", membership.petshopId).eq("service_id", parsed.data.service_id).eq("active", true).order("position", { ascending: false }).limit(1).maybeSingle();
+  const { data: created, error } = await supabase.from("checklist_steps").insert({ petshop_id: membership.petshopId, service_id: parsed.data.service_id, label: parsed.data.label, position: (last?.position ?? 0) + 1, active: true, created_by: session.user.id }).select("id").single();
+  if (error || !created) return { ok: false, error: error?.message ?? "Não foi possível criar a etapa." };
+  await createAdminClient()?.from("audit_logs").insert({ petshop_id: membership.petshopId, actor_id: session.user.id, action: "checklist_step.created", entity_table: "checklist_steps", entity_id: created.id, metadata: { service_id: parsed.data.service_id, label: parsed.data.label } });
+  revalidatePath("/app/checklist");
+  return { ok: true };
+}
+
+export async function updateChecklistStep(input: z.infer<typeof updateStepSchema>): Promise<Result> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant"])) return { ok: false, error: "Sem permissão." };
+  const parsed = updateStepSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+  if (!(await validateChecklistService(supabase, membership.petshopId, membership.role, parsed.data.service_id))) return { ok: false, error: "Serviço não pertence à área permitida." };
+  const { error } = await supabase.from("checklist_steps").update({ label: parsed.data.label, updated_by: session.user.id }).eq("id", parsed.data.id).eq("service_id", parsed.data.service_id).eq("petshop_id", membership.petshopId).eq("active", true);
+  if (error) return { ok: false, error: error.message };
+  await createAdminClient()?.from("audit_logs").insert({ petshop_id: membership.petshopId, actor_id: session.user.id, action: "checklist_step.updated", entity_table: "checklist_steps", entity_id: parsed.data.id, metadata: { label: parsed.data.label } });
+  revalidatePath("/app/checklist");
+  return { ok: true };
+}
+
+export async function deleteChecklistStep(input: { id: string; service_id: string }): Promise<Result> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner", "attendant"])) return { ok: false, error: "Sem permissão." };
+  const parsed = z.object({ id: z.string().uuid(), service_id: z.string().uuid() }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Dados inválidos." };
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: "Supabase indisponível." };
+  if (!(await validateChecklistService(supabase, membership.petshopId, membership.role, parsed.data.service_id))) return { ok: false, error: "Serviço não pertence à área permitida." };
+  const { error } = await supabase.from("checklist_steps").update({ active: false, deleted_at: new Date().toISOString(), deleted_by: session.user.id }).eq("id", parsed.data.id).eq("service_id", parsed.data.service_id).eq("petshop_id", membership.petshopId);
+  if (error) return { ok: false, error: error.message };
+  await createAdminClient()?.from("audit_logs").insert({ petshop_id: membership.petshopId, actor_id: session.user.id, action: "checklist_step.deleted", entity_table: "checklist_steps", entity_id: parsed.data.id, metadata: { service_id: parsed.data.service_id } });
+  revalidatePath("/app/checklist");
+  return { ok: true };
+}
+
 /**
  * Idempotente: cria ou atualiza a linha `checklists` (junção appointment+step).
  * done=true → seta completed_at + completed_by.
@@ -47,7 +117,7 @@ export async function toggleChecklistStep(
   const allowed = allowedAreasForRole(membership.role);
   const { data: appt } = await supabase
     .from("appointments")
-    .select("id, calendar:calendars!inner(area)")
+    .select("id, service_id, calendar:calendars!inner(area)")
     .eq("id", parsed.data.appointment_id)
     .eq("petshop_id", membership.petshopId)
     .is("deleted_at", null)
@@ -58,37 +128,81 @@ export async function toggleChecklistStep(
     return { ok: false, error: "Sem permissão na área deste atendimento." };
   }
 
-  // Confirma step pertence à mesma loja
-  const { data: step } = await supabase
-    .from("checklist_steps")
-    .select("id")
-    .eq("id", parsed.data.step_id)
-    .eq("petshop_id", membership.petshopId)
-    .eq("active", true)
-    .maybeSingle();
-  if (!step) return { ok: false, error: "Etapa inválida." };
+  const serviceId = appt.service_id ?? null;
+
+  // Resolve authoritative staircase for this appointment: service-specific
+  // steps take precedence; global steps are the fallback.
+  const { data: serviceSteps } = serviceId
+    ? await supabase
+        .from("checklist_steps")
+        .select("id, position")
+        .eq("petshop_id", membership.petshopId)
+        .eq("service_id", serviceId)
+        .eq("active", true)
+        .order("position", { ascending: true })
+    : { data: null };
+  const { data: globalSteps } = serviceSteps?.length
+    ? { data: null }
+    : await supabase
+        .from("checklist_steps")
+        .select("id, position")
+        .eq("petshop_id", membership.petshopId)
+        .is("service_id", null)
+        .eq("active", true)
+        .order("position", { ascending: true });
+  const orderedSteps = serviceSteps?.length ? serviceSteps : (globalSteps ?? []);
+  const targetIndex = orderedSteps.findIndex((step) => step.id === parsed.data.step_id);
+  if (targetIndex < 0) return { ok: false, error: "Etapa inválida para este serviço." };
 
   // Upsert manualmente (sem unique compound em checklists.appointment+step?)
   // initial_schema declarou unique (appointment_id, step_id). OK pra upsert.
+  const affectedSteps = parsed.data.done
+    ? orderedSteps.slice(0, targetIndex + 1)
+    : orderedSteps.slice(targetIndex);
   const completed_at = parsed.data.done ? new Date().toISOString() : null;
   const completed_by = parsed.data.done ? session.user.id : null;
 
   const { error } = await supabase
     .from("checklists")
     .upsert(
-      {
+      affectedSteps.map((step) => ({
         petshop_id: membership.petshopId,
         appointment_id: parsed.data.appointment_id,
-        step_id: parsed.data.step_id,
+        step_id: step.id,
         completed_at,
         completed_by,
-        notes: parsed.data.notes ?? null,
-      },
+        notes: step.id === parsed.data.step_id ? parsed.data.notes ?? null : null,
+      })),
       { onConflict: "appointment_id,step_id" },
     );
   if (error) return { ok: false, error: error.message };
 
+  if (parsed.data.done) {
+    const { data: started } = await supabase
+      .from("appointments")
+      .update({ status: "in_progress", updated_by: session.user.id })
+      .eq("id", parsed.data.appointment_id)
+      .eq("petshop_id", membership.petshopId)
+      .in("status", ["confirmed", "checked_in"])
+      .select("id")
+      .maybeSingle();
+    if (started) {
+      await createAdminClient()?.from("audit_logs").insert({ petshop_id: membership.petshopId, actor_id: session.user.id, action: "appointment.started_from_checklist", entity_table: "appointments", entity_id: started.id, metadata: { step_id: parsed.data.step_id } });
+    }
+  }
+
+  await createAdminClient()?.from("audit_logs").insert({
+    petshop_id: membership.petshopId,
+    actor_id: session.user.id,
+    action: parsed.data.done ? "checklist.progressed" : "checklist.rolled_back",
+    entity_table: "appointments",
+    entity_id: parsed.data.appointment_id,
+    metadata: { step_id: parsed.data.step_id, affected_steps: affectedSteps.length },
+  });
+
   revalidatePath("/app/checklist");
+  revalidatePath("/app/calendarios");
+  revalidatePath("/app/atendimentos");
   return { ok: true };
 }
 

@@ -20,6 +20,8 @@ import {
   uploadStepPhoto,
 } from "@/app/app/checklist/actions";
 import { cn } from "@/lib/utils";
+import { ChecklistConfigDialog, type ChecklistTemplate } from "@/components/checklist/checklist-config-dialog";
+import { compressImageForUpload } from "@/lib/images/compress-upload";
 
 type Status = "confirmed" | "checked_in" | "in_progress";
 
@@ -49,25 +51,24 @@ const STATUS_LABEL: Record<Status, { label: string; tone: "amber" | "sky" | "eme
   in_progress: { label: "Em atendimento", tone: "emerald" },
 };
 
-const HOUR_FMT = new Intl.DateTimeFormat("pt-BR", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-  timeZone: "America/Sao_Paulo",
-});
-
-export function ChecklistDayView({ cards }: { cards: ChecklistCard[] }) {
+export function ChecklistDayView({ cards, templates = [], canConfigure = false, timeZone }: { cards: ChecklistCard[]; templates?: ChecklistTemplate[]; canConfigure?: boolean; timeZone: string }) {
+  const availableAreas = Array.from(new Set(cards.map((card) => card.area)));
+  const [area, setArea] = useState<"grooming" | "veterinary">(availableAreas[0] ?? "grooming");
+  const visibleCards = cards.filter((card) => card.area === area);
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Checklist do dia</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Checklist do dia</h1>
         <p className="mt-1 text-sm text-zinc-600">
           Atendimentos de hoje com status agendado, chegou ou em atendimento. Clique no card pra
           expandir e marcar as etapas. Foto opcional por etapa.
-        </p>
+        </p></div>
+        {canConfigure ? <ChecklistConfigDialog templates={templates} /> : null}
       </div>
 
-      {cards.length === 0 ? (
+      {availableAreas.length > 1 ? <div className="inline-flex rounded-md border border-zinc-200 bg-zinc-50 p-1">{(["grooming", "veterinary"] as const).map((value) => <button key={value} type="button" onClick={() => setArea(value)} className={cn("rounded px-4 py-2 text-sm font-medium", area === value ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-600")}>{value === "grooming" ? "Petshop" : "Veterinária"}</button>)}</div> : null}
+
+      {visibleCards.length === 0 ? (
         <Card className="rounded-xl border-zinc-200 bg-white shadow-none">
           <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
             <ClipboardList className="size-8 text-zinc-300" />
@@ -77,9 +78,20 @@ export function ChecklistDayView({ cards }: { cards: ChecklistCard[] }) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3">
-          {cards.map((c) => (
-            <ChecklistCardItem key={c.appointmentId} card={c} />
+        <div className="max-h-[calc(100dvh-14rem)] space-y-0 overflow-y-auto overscroll-contain pr-1">
+          {visibleCards.map((c) => (
+            <div key={c.appointmentId} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3">
+              <div className="relative flex justify-end pr-3 pt-4">
+                <time className="font-mono text-xs font-semibold tabular-nums text-zinc-600">
+                  {new Date(c.startIso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone })}
+                </time>
+                <span aria-hidden className="absolute right-0 top-0 h-full w-px bg-zinc-200" />
+                <span aria-hidden className="absolute right-[-0.25rem] top-5 size-2 rounded-full bg-zinc-950 ring-4 ring-zinc-100" />
+              </div>
+              <div className="pb-3">
+                <ChecklistCardItem card={c} />
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -97,48 +109,33 @@ function ChecklistCardItem({ card }: { card: ChecklistCard }) {
   return (
     <Card className="rounded-xl border-zinc-200 bg-white shadow-none transition hover:border-zinc-300">
       <CardContent className="p-0">
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => setExpanded((v) => !v)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setExpanded((v) => !v);
-            }
-          }}
-          className="flex w-full cursor-pointer items-center gap-3 p-4 text-left"
-        >
-          <div className="font-mono text-sm tabular-nums text-zinc-500">
-            {HOUR_FMT.format(new Date(card.startIso))}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-zinc-950">{card.petName}</p>
-            <p className="truncate text-xs text-zinc-500">{card.serviceName}</p>
-          </div>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-              tone.tone === "sky" && "bg-sky-50 text-sky-700",
-              tone.tone === "amber" && "bg-amber-50 text-amber-700",
-              tone.tone === "emerald" && "bg-emerald-50 text-emerald-700",
-            )}
+        <div className="flex items-center gap-1 p-2 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg p-2 text-left hover:bg-zinc-50"
+            aria-expanded={expanded}
           >
-            {tone.label}
-          </span>
-          {total > 0 ? (
-            <span className="font-mono text-xs tabular-nums text-zinc-500">
-              {doneCount}/{total}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-zinc-950">{card.petName}</p>
+              <p className="truncate text-xs text-zinc-500">{card.serviceName}</p>
+            </div>
+            <span
+              className={cn(
+                "hidden items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium sm:inline-flex",
+                tone.tone === "sky" && "bg-sky-50 text-sky-700",
+                tone.tone === "amber" && "bg-amber-50 text-amber-700",
+                tone.tone === "emerald" && "bg-emerald-50 text-emerald-700",
+              )}
+            >
+              {tone.label}
             </span>
-          ) : null}
+            {total > 0 ? <span className="font-mono text-xs tabular-nums text-zinc-500">{doneCount}/{total}</span> : null}
+            {expanded ? <ChevronUp className="size-4 text-zinc-400" /> : <ChevronDown className="size-4 text-zinc-400" />}
+          </button>
           {card.trackingSlug ? (
             <CopyLinkIconButton slug={card.trackingSlug} petName={card.petName} />
           ) : null}
-          {expanded ? (
-            <ChevronUp className="size-4 text-zinc-400" />
-          ) : (
-            <ChevronDown className="size-4 text-zinc-400" />
-          )}
         </div>
 
         {expanded ? (
@@ -206,8 +203,15 @@ function StepRow({
     const fd = new FormData();
     fd.set("appointment_id", appointmentId);
     fd.set("step_id", step.stepId);
-    fd.set("file", file);
     startTransition(async () => {
+      let uploadFile: File;
+      try {
+        uploadFile = await compressImageForUpload(file);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Não foi possível processar a foto.");
+        return;
+      }
+      fd.set("file", uploadFile);
       const res = await uploadStepPhoto(fd);
       if (res.ok) toast.success("Foto enviada.");
       else toast.error(res.error);
@@ -287,7 +291,7 @@ function StepRow({
           <input
             ref={fileRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/*"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];

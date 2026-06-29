@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "motion/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -113,6 +112,7 @@ type Props = {
 };
 
 const WEEKDAY_LABELS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 const formSchema = z.object({
   service_id: z.string().uuid("Serviço obrigatório"),
@@ -235,6 +235,11 @@ export function CalendariosView({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDateIso, setSelectedDateIso] = useState(activeDateIso);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(visibleYear);
+
+  useEffect(() => setSelectedDateIso(activeDateIso), [activeDateIso]);
   // Checklist dialog target. When set, ChecklistDialog opens for that appointment.
   // submitLabel toggles between "Salvar e iniciar" (intercept of checked_in→in_progress)
   // and "Salvar" (read/edit mode for already-started or finished bookings).
@@ -277,8 +282,8 @@ export function CalendariosView({
   );
 
   const dayAppointments = useMemo(
-    () => appointmentsByDay[activeDateIso] ?? [],
-    [appointmentsByDay, activeDateIso],
+    () => appointmentsByDay[selectedDateIso] ?? [],
+    [appointmentsByDay, selectedDateIso],
   );
 
   const visibleMonthLabel = useMemo(() => {
@@ -288,10 +293,10 @@ export function CalendariosView({
 
   // Usa meia-noite UTC equivalente ao fuso da loja, independente do navegador.
   const selectedDate = useMemo(() => {
-    const [y, m, d] = activeDateIso.split("-").map(Number);
+    const [y, m, d] = selectedDateIso.split("-").map(Number);
     if (!y || !m || !d) return new Date();
     return utcInstantOfPetshopMidnight(y, m - 1, d, timeZone);
-  }, [activeDateIso, timeZone]);
+  }, [selectedDateIso, timeZone]);
 
   const servicesForArea = useMemo(
     () => services.filter((s) => s.area === activeArea),
@@ -330,14 +335,14 @@ export function CalendariosView({
 
   const availableSlots = useMemo(() => {
     if (!selectedService) return [];
-    const [y, m, d] = activeDateIso.split("-").map(Number);
+    const [y, m, d] = selectedDateIso.split("-").map(Number);
     if (!y || !m || !d) return [];
     const petshopMidnight = utcInstantOfPetshopMidnight(y, m - 1, d, timeZone);
     const nextDay = isoDateOnlyParts(y, m - 1, d + 1);
     const prevDay = isoDateOnlyParts(y, m - 1, d - 1);
     const candidates = [
       ...(appointmentsByDay[prevDay] ?? []),
-      ...(appointmentsByDay[activeDateIso] ?? []),
+      ...(appointmentsByDay[selectedDateIso] ?? []),
       ...(appointmentsByDay[nextDay] ?? []),
     ];
     const dayAppts = candidates
@@ -359,34 +364,31 @@ export function CalendariosView({
       stepMin: slotMinutes,
     });
 
-    // A service of duration D needs ceil(D / slotMinutes) consecutive free
-    // anchor slots. Walk the array and keep anchors whose forward window is
-    // fully free AND contiguous (no gap across schedule windows).
-    const slotsNeeded = Math.max(1, Math.ceil(selectedService.duration_minutes / slotMinutes));
-    const bookable: typeof rawSlots = [];
-    for (let i = 0; i <= rawSlots.length - slotsNeeded; i++) {
-      const window = rawSlots.slice(i, i + slotsNeeded);
-      if (!window.every((s) => s.status === "free")) continue;
-      let contiguous = true;
-      for (let j = 0; j < window.length - 1; j++) {
-        if (window[j]!.end.getTime() !== window[j + 1]!.start.getTime()) {
-          contiguous = false;
-          break;
-        }
-      }
-      if (contiguous) bookable.push(window[0]!);
-    }
-    return bookable;
-  }, [selectedService, activeDateIso, schedules, appointmentsByDay, slotMinutes, timeZone]);
+    return rawSlots.filter((slot) => slot.status === "free");
+  }, [selectedService, selectedDateIso, schedules, appointmentsByDay, slotMinutes, timeZone]);
 
   function navigateMonth(delta: number) {
     const next = new Date(visibleYear, visibleMonth0 + delta, 1);
     const iso = isoDateOnlyParts(next.getFullYear(), next.getMonth(), 1);
+    setSelectedDateIso(iso);
     pushUrl({ date: iso });
   }
 
   function navigateToToday() {
+    setSelectedDateIso(todayIso);
     pushUrl({ date: todayIso });
+  }
+
+  function selectDate(iso: string) {
+    setSelectedDateIso(iso);
+    pushUrl({ date: iso });
+  }
+
+  function selectMonth(year: number, month0: number) {
+    const iso = isoDateOnlyParts(year, month0, 1);
+    setSelectedDateIso(iso);
+    setMonthPickerOpen(false);
+    pushUrl({ date: iso });
   }
 
   function pushUrl(patch: { area?: ServiceArea; date?: string; calendar?: string }) {
@@ -456,12 +458,12 @@ export function CalendariosView({
       toast.error("Selecione um serviço.");
       return;
     }
-    // Appointments are fixed 30-min slots. The service is metadata for the work
+    // Appointments use the tenant's configured slot size. Service duration is metadata
     // performed in that slot; its duration drives pricing/reporting but does not
     // expand the time block. Tenants who need longer services book consecutive
     // slots manually.
     const startDate = new Date(values.starts_at);
-    const endDate = new Date(startDate.getTime() + 30 * 60_000);
+    const endDate = new Date(startDate.getTime() + slotMinutes * 60_000);
 
     const fd = new FormData();
     fd.set("calendar_id", activeCalendarId);
@@ -601,11 +603,7 @@ export function CalendariosView({
     calendars.filter((c) => c.area === activeArea).length > 1;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
-    >
+    <div>
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -623,7 +621,7 @@ export function CalendariosView({
             <div className="inline-flex rounded-md border border-zinc-200 bg-white p-1">
               {areas.map((a) => {
                 const active = a === activeArea;
-                const href = `/app/calendarios?area=${a}&date=${activeDateIso}`;
+                const href = `/app/calendarios?area=${a}&date=${selectedDateIso}`;
                 return (
                   <Link
                     key={a}
@@ -653,7 +651,7 @@ export function CalendariosView({
 
       {/* Month nav row */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
           <Button
             variant="outline"
             size="icon"
@@ -663,9 +661,18 @@ export function CalendariosView({
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <span className="min-w-[10rem] text-base font-semibold text-zinc-950">
-            {visibleMonthLabel}
-          </span>
+          <Button
+            variant="ghost"
+            className="min-w-0 flex-1 justify-center truncate px-2 text-sm font-semibold text-zinc-950 sm:min-w-[10rem] sm:justify-start sm:text-base"
+            onClick={() => {
+              setPickerYear(visibleYear);
+              setMonthPickerOpen(true);
+            }}
+            aria-label="Escolher mês e ano"
+          >
+            <CalendarDays className="size-4 shrink-0" />
+            <span className="truncate">{visibleMonthLabel}</span>
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -686,6 +693,41 @@ export function CalendariosView({
         </Button>
       </div>
 
+      <Dialog open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Escolher mês</DialogTitle>
+            <DialogDescription>Navegue pelo ano e selecione um mês.</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-between rounded-lg bg-zinc-50 p-2">
+            <Button variant="ghost" size="icon" onClick={() => setPickerYear((year) => year - 1)} aria-label="Ano anterior">
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="font-mono text-base font-semibold tabular-nums">{pickerYear}</span>
+            <Button variant="ghost" size="icon" onClick={() => setPickerYear((year) => year + 1)} aria-label="Próximo ano">
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {MONTH_LABELS.map((label, month0) => {
+              const active = pickerYear === visibleYear && month0 === visibleMonth0;
+              return (
+                <Button
+                  key={label}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  className="min-h-11"
+                  onClick={() => selectMonth(pickerYear, month0)}
+                  aria-pressed={active}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Grid + day panel */}
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <Card className="overflow-hidden rounded-lg border-zinc-200 bg-white shadow-none">
@@ -693,7 +735,7 @@ export function CalendariosView({
             {WEEKDAY_LABELS.map((d) => (
               <div
                 key={d}
-                className="px-2 py-2 text-center text-xs font-medium uppercase tracking-wide text-zinc-500"
+                className="px-1 py-2 text-center text-[0.625rem] font-medium uppercase tracking-wide text-zinc-500 sm:px-2 sm:text-xs"
               >
                 {d}
               </div>
@@ -703,14 +745,14 @@ export function CalendariosView({
             {gridCells.map((cell) => {
               const appts = appointmentsByDay[cell.iso] ?? [];
               const validAppts = appts.filter((a) => VALID_STATUSES.includes(a.status));
-              const isActive = cell.iso === activeDateIso;
+              const isActive = cell.iso === selectedDateIso;
               const firstAppt = validAppts[0];
               return (
                 <button
                   key={cell.iso}
-                  onClick={() => pushUrl({ date: cell.iso })}
+                  onClick={() => selectDate(cell.iso)}
                   className={
-                    "flex h-24 flex-col gap-1 border-b border-r border-zinc-100 p-2 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:h-28 " +
+                    "flex h-14 min-w-0 flex-col gap-1 border-b border-r border-zinc-100 p-1.5 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-zinc-500 sm:h-28 sm:p-2 " +
                     (isActive
                       ? "bg-zinc-950 text-white"
                       : cell.inMonth
@@ -746,7 +788,7 @@ export function CalendariosView({
                   {firstAppt ? (
                     <div
                       className={
-                        "mt-auto flex items-center gap-1.5 truncate rounded px-1.5 py-1 text-[0.6875rem] " +
+                        "mt-auto hidden items-center gap-1.5 truncate rounded px-1.5 py-1 text-[0.6875rem] sm:flex " +
                         (isActive
                           ? "bg-white/15 text-white"
                           : statusChipClass(firstAppt.status))
@@ -770,7 +812,7 @@ export function CalendariosView({
           </div>
         </Card>
 
-        <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
+        <Card className="scroll-mt-20 rounded-lg border-zinc-200 bg-white shadow-none">
           <CardContent className="space-y-4 p-5">
             <div>
               <p className="text-xs uppercase tracking-wide text-zinc-500">Dia</p>
@@ -823,7 +865,7 @@ export function CalendariosView({
                       (a.status === "in_progress" || a.status === "finished") ? (
                         <button
                           onClick={() => openChecklistRead(a)}
-                          className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                         >
                           <ClipboardList className="size-3" />
                           Ver checklist
@@ -833,7 +875,7 @@ export function CalendariosView({
                       (a.status === "in_progress" || a.status === "finished") ? (
                         <button
                           onClick={() => openRecordRead(a)}
-                          className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                         >
                           <ClipboardList className="size-3" />
                           Ver prontuário
@@ -857,7 +899,7 @@ export function CalendariosView({
                             href={waUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-2 inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[0.6875rem] font-medium text-emerald-800 transition hover:bg-emerald-100"
+                            className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                           >
                             <MessageCircle className="size-3" />
                             WhatsApp confirmação
@@ -887,7 +929,7 @@ export function CalendariosView({
                               <button
                                 onClick={() => handleAdvance(a.id, a.status, a)}
                                 disabled={pending}
-                                className="inline-flex items-center gap-1 rounded-md bg-zinc-950 px-2 py-1 text-[0.6875rem] font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60"
+                                className="inline-flex min-h-11 items-center gap-1 rounded-md bg-zinc-950 px-3 py-1 text-xs font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                               >
                                 <ChevronAdvance className="size-3" />
                                 {advanceLabel}
@@ -897,7 +939,7 @@ export function CalendariosView({
                                 type="button"
                                 disabled
                                 title="Só dá pra avançar no dia do atendimento. Use Reagendar pra mover pra hoje."
-                                className="inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[0.6875rem] font-medium text-zinc-400"
+                                className="inline-flex min-h-11 cursor-not-allowed items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-400 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                               >
                                 <ChevronAdvance className="size-3" />
                                 {advanceLabel}
@@ -913,7 +955,7 @@ export function CalendariosView({
                               })
                             }
                             disabled={pending}
-                            className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                           >
                             <CalendarDays className="size-3" />
                             Reagendar
@@ -922,7 +964,7 @@ export function CalendariosView({
                             <button
                               onClick={() => handleUndo(a.id, a.status)}
                               disabled={pending}
-                              className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                              className="inline-flex min-h-11 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                               aria-label="Voltar status"
                             >
                               <Undo2 className="size-3" />
@@ -933,7 +975,7 @@ export function CalendariosView({
                             <button
                               onClick={() => handleNoShow(a.id)}
                               disabled={pending}
-                              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-amber-800 transition hover:bg-amber-50 disabled:opacity-60"
+                              className="inline-flex min-h-11 items-center gap-1 rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                             >
                               <UserX className="size-3" />
                               Não veio
@@ -943,7 +985,7 @@ export function CalendariosView({
                             <button
                               onClick={() => handleCancel(a.id)}
                               disabled={pending}
-                              className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-[0.6875rem] font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
+                              className="inline-flex min-h-11 items-center gap-1 rounded-md border border-rose-200 bg-white px-3 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60 sm:min-h-0 sm:px-2 sm:text-[0.6875rem]"
                             >
                               <Ban className="size-3" />
                               Cancelar
@@ -969,13 +1011,14 @@ export function CalendariosView({
 
       {/* Mobile FAB. Spacer pushes scrollable content above the floating button so
           the last day-appointment row stays tappable. */}
-      <div className="h-24 sm:hidden" aria-hidden />
+      <div className="h-28 sm:hidden" aria-hidden />
       <button
         onClick={openCreate}
-        className="fixed bottom-6 right-6 z-40 inline-flex size-14 items-center justify-center rounded-full bg-zinc-950 text-white shadow-xl shadow-zinc-950/20 transition hover:bg-zinc-800 sm:hidden"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-40 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 px-5 text-sm font-semibold text-white shadow-xl shadow-zinc-950/20 transition hover:bg-zinc-800 sm:hidden"
         aria-label="Novo agendamento"
       >
-        <Plus className="size-6" />
+        <Plus className="size-5" />
+        Agendar
       </button>
 
       {/* Form dialog */}
@@ -1034,7 +1077,7 @@ export function CalendariosView({
                   // Always render slots as 30-min anchors regardless of service
                   // duration. The engine already validated that the full service
                   // duration fits without overlap; the user picks a start anchor.
-                  const anchorEnd = new Date(slot.start.getTime() + 30 * 60_000);
+                  const anchorEnd = new Date(slot.start.getTime() + slotMinutes * 60_000);
                   return {
                     id: iso,
                     label: `${formatHHmm(iso, timeZone)} às ${formatHHmm(anchorEnd.toISOString(), timeZone)}`,
@@ -1186,7 +1229,7 @@ export function CalendariosView({
           router.refresh();
         }}
       />
-    </motion.div>
+    </div>
   );
 }
 

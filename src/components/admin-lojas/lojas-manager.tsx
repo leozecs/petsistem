@@ -361,7 +361,8 @@ export function LojasManager({
                     <TableHead>Subdomínio</TableHead>
                     <TableHead>Plano</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Criada em</TableHead>
+                    <TableHead>Data de início</TableHead>
+                    <TableHead className="text-right">Abrir</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -386,6 +387,17 @@ export function LojasManager({
                       <TableCell className="text-zinc-600">
                         {BR_DATE.format(new Date(p.created_at))}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <a
+                          href={`https://${p.subdomain}.${ROOT_DOMAIN}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                        >
+                          <ExternalLink className="size-3.5" /> Subdomínio
+                        </a>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -407,7 +419,7 @@ export function LojasManager({
               <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                 <span>{drawerShop.plan_name}</span>
                 <span>·</span>
-                <span>{BR_DATE.format(new Date(drawerShop.created_at))}</span>
+                <span>Início: {BR_DATE.format(new Date(drawerShop.created_at))}</span>
                 <span className="ml-auto">
                   <StatusPill tone={statusTone(drawerShop.status)}>
                     {STATUS_LABEL[drawerShop.status]}

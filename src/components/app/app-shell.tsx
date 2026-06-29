@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { Bell, LogOut, Menu, ShieldCheck, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,22 +14,9 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/app/auth-actions";
 import type { SessionContext } from "@/lib/auth/session";
 import { PetsistemLogo } from "@/components/brand/logo";
+import { isLightBackground } from "@/lib/color";
 
 type ShellVariant = "admin" | "tenant";
-
-function PageTransition({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  return (
-    <motion.div
-      key={pathname}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
-    >
-      {children}
-    </motion.div>
-  );
-}
 type ActivePetshop = NonNullable<SessionContext["activeMembership"]>["petshop"];
 
 const knownPetshopLogos: Record<string, string> = {
@@ -177,34 +165,34 @@ function SidebarFooter({ session, variant }: { session: SessionContext; variant:
   );
 }
 
-function SidebarContent({ session, variant }: { session: SessionContext; variant: ShellVariant }) {
+function SidebarContent({ session, variant, mobile = false, onNavigate }: { session: SessionContext; variant: ShellVariant; mobile?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
   const nav = navigationForSession(session);
 
-  // Sidebar pinta com primary_color da loja ativa (tenant). Admin Master usa
-  // zinc-950 fixo. Default fallback continua zinc-950 pra cobrir loja sem
-  // cor configurada.
+  // A cor da loja pertence apenas ao miolo de navegação. Identidade e conta
+  // ficam em zonas neutras para preservar legibilidade em qualquer tema.
   const tenantColor =
     variant === "tenant" ? session.activeMembership?.petshop.primaryColor : null;
   const sidebarBg = tenantColor && /^#[0-9a-fA-F]{6}$/.test(tenantColor)
     ? tenantColor
     : "#09090b"; // zinc-950
+  const lightNavigation = isLightBackground(sidebarBg);
 
   return (
-    <div
-      className="flex h-full flex-col text-white"
-      style={{ backgroundColor: sidebarBg }}
-    >
-      <div className="border-b border-white/10 p-5">
+    <div className="flex h-full flex-col bg-zinc-950 text-white">
+      <div className={cn("shrink-0 bg-zinc-950", mobile ? "p-3" : "p-5")}>
         <SidebarHeader session={session} variant={variant} />
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav
+        className={cn("flex-1 px-3 py-8", mobile ? "grid auto-rows-min grid-cols-2 content-start gap-2 overflow-y-auto" : "space-y-1 overflow-y-auto")}
+        style={{ background: `linear-gradient(to bottom, #09090b 0, ${sidebarBg} 2.5rem, ${sidebarBg} calc(100% - 2.5rem), #09090b 100%)` }}
+      >
         {(() => {
           // Normaliza trailing slash e escolhe o item com o href mais longo que
           // case com o pathname atual. Garante que só UM item fica ativo, e que
           // /app/configuracoes/horarios ativa "Horários" (não "Configurações"
-          // ou "Dashboard").
+          // ou "Dashboard"). Prefix-match strict via startsWith(href + "/").
           const path = pathname.endsWith("/") && pathname !== "/"
             ? pathname.slice(0, -1)
             : pathname;
@@ -225,10 +213,17 @@ function SidebarContent({ session, variant }: { session: SessionContext; variant
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-zinc-300 transition",
-                  "hover:bg-white/10 hover:text-white",
-                  active && "bg-white text-zinc-950 hover:bg-white hover:text-zinc-950",
+                  "flex items-center gap-3 rounded-md px-3 text-sm font-medium transition",
+                  mobile ? "min-h-12 border" : "h-10",
+                  lightNavigation
+                    ? "border-black/10 text-zinc-900 hover:bg-black/10 hover:text-black"
+                    : "border-white/10 text-zinc-200 hover:bg-white/10 hover:text-white",
+                  active && (lightNavigation
+                    ? "bg-zinc-950 text-white hover:bg-zinc-900 hover:text-white"
+                    : "bg-white text-zinc-950 hover:bg-white hover:text-zinc-950"),
                 )}
               >
                 <Icon className="size-4" />
@@ -239,7 +234,9 @@ function SidebarContent({ session, variant }: { session: SessionContext; variant
         })()}
       </nav>
 
-      <SidebarFooter session={session} variant={variant} />
+      <div className="shrink-0 bg-zinc-950">
+        <SidebarFooter session={session} variant={variant} />
+      </div>
     </div>
   );
 }
@@ -253,26 +250,59 @@ export function AppShell({
   session: SessionContext;
   variant?: ShellVariant;
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const routes = navigationForSession(session).map((item) => item.href);
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const prefetch = () => {
+      routes.forEach((route, index) => {
+        timers.push(setTimeout(() => {
+          if (!cancelled) router.prefetch(route);
+        }, index * 140));
+      });
+    };
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const idleId = idleWindow.requestIdleCallback?.(prefetch, { timeout: 1_500 });
+    if (idleId === undefined) timers.push(setTimeout(prefetch, 800));
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
+    };
+  }, [router, session]);
   return (
     <TooltipProvider>
       <div className="min-h-[100dvh] bg-zinc-100 text-zinc-950">
-        <aside className="fixed inset-y-0 left-0 hidden w-72 lg:block">
+        <a
+          href="#main-content"
+          className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform focus:translate-y-0"
+        >
+          Pular para o conteúdo
+        </a>
+
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 lg:block">
           <SidebarContent session={session} variant={variant} />
         </aside>
 
-        <div className="lg:pl-72">
-          <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/90 backdrop-blur">
-            <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
-              <Sheet>
+        <div className="pt-16 lg:pl-72">
+          <header className="fixed inset-x-0 top-0 z-30 border-b border-zinc-200/80 bg-white/90 shadow-[0_1px_0_rgb(24_24_27/0.03)] backdrop-blur-xl lg:left-72">
+            <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger
                   render={<Button variant="outline" size="icon" className="rounded-md lg:hidden" />}
                 >
                   <Menu className="size-4" />
                   <span className="sr-only">Abrir menu</span>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-72 border-0 bg-zinc-950 p-0">
+                <SheetContent side="left" className="w-[min(92vw,420px)] border-0 bg-zinc-950 p-0" showCloseButton={false}>
                   <SheetTitle className="sr-only">Navegação</SheetTitle>
-                  <SidebarContent session={session} variant={variant} />
+                  <SidebarContent session={session} variant={variant} mobile onNavigate={() => setMobileMenuOpen(false)} />
                 </SheetContent>
               </Sheet>
 
@@ -289,9 +319,12 @@ export function AppShell({
             </div>
           </header>
 
-          <PageTransition>
-            <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
-          </PageTransition>
+          <main
+            id="main-content"
+            className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8"
+          >
+            {children}
+          </main>
         </div>
       </div>
     </TooltipProvider>

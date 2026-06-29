@@ -58,6 +58,7 @@ type Props = {
   address: string | null;
   phone: string | null;
   logoUrl: string | null;
+  slotMinutes: number;
 };
 
 const SPECIES_OPTIONS = ["Cachorro", "Gato", "Pássaro", "Roedor", "Réptil", "Outro"];
@@ -70,10 +71,10 @@ function bookableDays(): Date[] {
   return Array.from({ length: 60 }, (_, i) => addDays(startOfDay(new Date()), i + 1));
 }
 
-function slotEndHHmm(iso: string): string {
+function slotEndHHmm(iso: string, slotMinutes: number): string {
   const hhmm = iso.split("T")[1] ?? "";
   const [h, m] = hhmm.split(":").map(Number);
-  const total = (h ?? 0) * 60 + (m ?? 0) + 30;
+  const total = (h ?? 0) * 60 + (m ?? 0) + slotMinutes;
   const nh = String(Math.floor(total / 60)).padStart(2, "0");
   const nm = String(total % 60).padStart(2, "0");
   return `${nh}:${nm}`;
@@ -87,6 +88,7 @@ export function BookingPage({
   address,
   phone,
   logoUrl,
+  slotMinutes,
 }: Props) {
   const [activeArea, setActiveArea] = useState<"grooming" | "veterinary">(
     services.find((s) => s.area === "grooming") ? "grooming" : "veterinary",
@@ -473,7 +475,7 @@ export function BookingPage({
                         key={iso}
                         type="button"
                         onClick={() => setSelectedSlot(iso)}
-                        title={`${hhmm} às ${slotEndHHmm(iso)}`}
+                        title={`${hhmm} às ${slotEndHHmm(iso, slotMinutes)}`}
                         aria-pressed={active}
                         className={cn(
                           "h-11 rounded-md border text-[13.5px] font-medium tabular-nums transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/30",

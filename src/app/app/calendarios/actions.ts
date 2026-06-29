@@ -385,14 +385,18 @@ export async function updateAppointmentStatus(
     };
   }
 
+  const trackingExpiresAt = parsed.data.status === "finished"
+    ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    : null;
   const { error } = await supabase
     .from("appointments")
-    .update({ status: parsed.data.status, updated_by: session.user.id })
+    .update({ status: parsed.data.status, tracking_expires_at: trackingExpiresAt, updated_by: session.user.id })
     .eq("id", parsed.data.id)
     .eq("petshop_id", membership.petshopId);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/app/calendarios");
+  revalidatePath("/app/atendimentos");
   return { ok: true };
 }
 
@@ -476,13 +480,14 @@ export async function finalizeAppointment(
   // Advance status to finished.
   const { error: stErr } = await supabase
     .from("appointments")
-    .update({ status: "finished", updated_by: session.user.id })
+    .update({ status: "finished", tracking_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), updated_by: session.user.id })
     .eq("id", parsed.data.id)
     .eq("petshop_id", membership.petshopId);
   if (stErr) return { ok: false, error: stErr.message };
 
   revalidatePath("/app/calendarios");
   revalidatePath("/app/financeiro");
+  revalidatePath("/app/atendimentos");
   return { ok: true };
 }
 

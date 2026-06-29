@@ -1,12 +1,20 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
-import { contrastWithWhite, MIN_AA_CONTRAST } from "@/lib/color";
 import { isPetshopTimeZone } from "@/lib/timezones";
+import {
+  detectPetshopLogoExtension,
+  getPetshopLogoExtension,
+  isTenantPetshopLogoPath,
+  MAX_PETSHOP_LOGO_BYTES,
+  PETSHOP_LOGO_BUCKET,
+  PETSHOP_LOGO_MIME_TYPES,
+} from "@/lib/storage/petshop-logo";
 
 export type ActionState = {
   ok: boolean;
@@ -94,16 +102,6 @@ export async function updatePetshopVisual(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  // A sidebar usa essa cor como bg e renderiza texto branco. Bloqueia cores
-  // muito claras (ratio AA < 4.5) pra evitar texto ilegível.
-  const ratio = contrastWithWhite(parsed.data.primary_color);
-  if (ratio < MIN_AA_CONTRAST) {
-    return {
-      ok: false,
-      error: `Cor muito clara — texto branco da sidebar ficaria ilegível (contraste ${ratio.toFixed(2)}:1, mínimo 4.5:1). Use uma cor mais escura.`,
-    };
-  }
-
   const supabase = await createClient();
   if (!supabase) return { ok: false, error: "Supabase indisponível." };
 
@@ -167,88 +165,193 @@ export async function updatePetshopOperations(
   return { ok: true };
 }
 
-const uploadLogoSchema = z.object({
-  petshop_id: z.string().uuid(),
-  ext: z.enum(["png", "jpg", "jpeg", "webp", "svg"]),
+const prepareLogoUploadSchema = z.object({
+  fileSize: z.number().int().positive().max(MAX_PETSHOP_LOGO_BYTES),
+  mimeType: z.enum(PETSHOP_LOGO_MIME_TYPES),
 });
 
-/**
- * Recebe um base64 da imagem e sobe pro bucket `petshop-logos`. Path:
- * `<petshop_id>/logo.<ext>`. Usa admin client pra autoridade — a RLS do bucket
- * já restringe path por petshop, mas a action também valida que o caller é
- * dono pra evitar abuso por usuário malicioso conhecedor de outro petshop_id.
- *
- * Limite de tamanho: ~2MB. Maior que isso recusamos pra não inflar conta de
- * egress nem encher Storage.
- */
-const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const completeLogoUploadSchema = z.object({
+  path: z.string().trim().min(1).max(200),
+});
 
-export async function uploadPetshopLogo(formData: FormData): Promise<
+type LogoUploadError = { ok: false; error: string };
+
+/**
+ * Autoriza um upload curto e tenant-scoped. O binário vai direto do navegador
+ * ao Supabase Storage, evitando o limite de body das Server Actions da Vercel.
+ */
+export async function preparePetshopLogoUpload(input: {
+  fileSize: number;
+  mimeType: string;
+}): Promise<
+  | { ok: true; path: string; token: string }
+  | LogoUploadError
+> {
+  const { membership } = await requireTenant();
+  if (!hasRole(membership, ["owner"])) {
+    return { ok: false, error: "Apenas o dono pode trocar a logo." };
+  }
+
+  const parsed = prepareLogoUploadSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Arquivo inválido. Use PNG, JPG ou WEBP com até 2MB.",
+    };
+  }
+
+  const extension = getPetshopLogoExtension(parsed.data.mimeType);
+  if (!extension) {
+    return { ok: false, error: "Formato não suportado. Use PNG, JPG ou WEBP." };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) return { ok: false, error: "Upload temporariamente indisponível." };
+
+  const path = `${membership.petshopId}/logo-${randomUUID()}.${extension}`;
+  const { data, error } = await admin.storage
+    .from(PETSHOP_LOGO_BUCKET)
+    .createSignedUploadUrl(path);
+
+  if (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      msg: "petshop_logo.prepare_failed",
+      petshopId: membership.petshopId,
+      error: error.message,
+    }));
+    return { ok: false, error: "Não foi possível preparar o upload da logo." };
+  }
+
+  return { ok: true, path, token: data.token };
+}
+
+/**
+ * Confirma o upload depois que o Storage recebeu o arquivo. Revalida tenant,
+ * owner, path, tamanho e assinatura binária antes de persistir a nova URL.
+ */
+export async function completePetshopLogoUpload(input: {
+  path: string;
+}): Promise<
   | { ok: true; path: string; url: string }
-  | { ok: false; error: string }
+  | LogoUploadError
 > {
   const { session, membership } = await requireTenant();
   if (!hasRole(membership, ["owner"])) {
     return { ok: false, error: "Apenas o dono pode trocar a logo." };
   }
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    return { ok: false, error: "Arquivo não enviado." };
-  }
-  if (file.size > MAX_LOGO_BYTES) {
-    return { ok: false, error: "Arquivo grande demais. Máximo 2MB." };
-  }
-  const extRaw = (file.name.split(".").pop() ?? "").toLowerCase();
-  const parsed = uploadLogoSchema.safeParse({
-    petshop_id: membership.petshopId,
-    ext: extRaw === "jpeg" ? "jpg" : extRaw,
-  });
-  if (!parsed.success) {
-    return { ok: false, error: "Formato não suportado. Use PNG, JPG, WEBP ou SVG." };
+  const parsed = completeLogoUploadSchema.safeParse(input);
+  if (
+    !parsed.success ||
+    !isTenantPetshopLogoPath(parsed.data.path, membership.petshopId)
+  ) {
+    return { ok: false, error: "Upload de logo inválido." };
   }
 
   const admin = createAdminClient();
-  if (!admin) return { ok: false, error: "Service role indisponível." };
+  if (!admin) return { ok: false, error: "Upload temporariamente indisponível." };
 
-  const path = `${parsed.data.petshop_id}/logo.${parsed.data.ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const path = parsed.data.path;
+  const expectedExtension = path.split(".").pop();
+  const { data: fileInfo, error: infoError } = await admin.storage
+    .from(PETSHOP_LOGO_BUCKET)
+    .info(path);
+  if (
+    infoError ||
+    typeof fileInfo.size !== "number" ||
+    fileInfo.size <= 0 ||
+    fileInfo.size > MAX_PETSHOP_LOGO_BYTES
+  ) {
+    await admin.storage.from(PETSHOP_LOGO_BUCKET).remove([path]);
+    return { ok: false, error: "O arquivo enviado excede o limite permitido." };
+  }
 
-  // Antes de subir o novo arquivo, pega o path atual (se existir e for diferente)
-  // pra apagar do bucket — evita órfãos quando dono troca de extensão (png→jpg).
-  // upsert:true cobre o caso de mesmo path; troca de extensão deixaria órfão.
+  const { data: uploadedFile, error: downloadError } = await admin.storage
+    .from(PETSHOP_LOGO_BUCKET)
+    .download(path);
+
+  if (downloadError) {
+    await admin.storage.from(PETSHOP_LOGO_BUCKET).remove([path]);
+    return { ok: false, error: "A logo não foi encontrada no Storage." };
+  }
+
+  const bytes = new Uint8Array(await uploadedFile.arrayBuffer());
+  const detectedExtension = detectPetshopLogoExtension(bytes);
+  if (
+    bytes.byteLength > MAX_PETSHOP_LOGO_BYTES ||
+    detectedExtension === null ||
+    detectedExtension !== expectedExtension
+  ) {
+    await admin.storage.from(PETSHOP_LOGO_BUCKET).remove([path]);
+    return { ok: false, error: "O arquivo enviado não é uma imagem válida." };
+  }
+
   const supabase = await createClient();
-  if (!supabase) return { ok: false, error: "Supabase indisponível." };
-  const { data: current } = await supabase
+  if (!supabase) {
+    await admin.storage.from(PETSHOP_LOGO_BUCKET).remove([path]);
+    return { ok: false, error: "Supabase indisponível." };
+  }
+  const { data: current, error: currentError } = await supabase
     .from("petshops")
     .select("logo_path")
     .eq("id", membership.petshopId)
     .maybeSingle();
+  if (currentError) {
+    await admin.storage.from(PETSHOP_LOGO_BUCKET).remove([path]);
+    return { ok: false, error: "Não foi possível consultar a logo atual." };
+  }
   const oldPath = current?.logo_path;
 
-  const { error: uploadErr } = await admin.storage
-    .from("petshop-logos")
-    .upload(path, buffer, {
-      contentType: file.type || `image/${parsed.data.ext}`,
-      upsert: true,
-    });
-  if (uploadErr) return { ok: false, error: uploadErr.message };
-
-  // Atualiza logo_path no petshop pra o cache de leitura saber qual extensão.
   const { error: updateErr } = await supabase
     .from("petshops")
     .update({ logo_path: path, updated_by: session.user.id })
     .eq("id", membership.petshopId);
-  if (updateErr) return { ok: false, error: updateErr.message };
-
-  // Best-effort: apaga o arquivo antigo se mudou de extensão. Falha aqui não
-  // bloqueia o upload — o cron de orphan cleanup recolhe depois.
-  if (oldPath && oldPath !== path) {
-    await admin.storage.from("petshop-logos").remove([oldPath]);
+  if (updateErr) {
+    await admin.storage.from(PETSHOP_LOGO_BUCKET).remove([path]);
+    return { ok: false, error: "Não foi possível salvar a nova logo." };
   }
 
-  // Public URL pra preview imediato no client.
-  const { data: pub } = admin.storage.from("petshop-logos").getPublicUrl(path);
+  const { error: auditError } = await admin.from("audit_logs").insert({
+    petshop_id: membership.petshopId,
+    actor_id: session.user.id,
+    action: "petshop.logo.update",
+    entity_table: "petshops",
+    entity_id: membership.petshopId,
+    metadata: { previous_path: oldPath ?? null, new_path: path },
+  });
+
+  if (auditError) {
+    const { error: rollbackError } = await admin
+      .from("petshops")
+      .update({ logo_path: oldPath ?? null, updated_by: session.user.id })
+      .eq("id", membership.petshopId);
+    await admin.storage.from(PETSHOP_LOGO_BUCKET).remove([path]);
+    console.error(JSON.stringify({
+      level: "error",
+      msg: "petshop_logo.audit_failed",
+      petshopId: membership.petshopId,
+      auditError: auditError.message,
+      rollbackError: rollbackError?.message,
+    }));
+    return { ok: false, error: "Não foi possível auditar a troca da logo." };
+  }
+
+  if (oldPath && oldPath !== path) {
+    const { error: cleanupError } = await admin.storage
+      .from(PETSHOP_LOGO_BUCKET)
+      .remove([oldPath]);
+    if (cleanupError) {
+      console.warn(JSON.stringify({
+        level: "warn",
+        msg: "petshop_logo.old_file_cleanup_failed",
+        petshopId: membership.petshopId,
+        error: cleanupError.message,
+      }));
+    }
+  }
+
+  const { data: pub } = admin.storage.from(PETSHOP_LOGO_BUCKET).getPublicUrl(path);
 
   revalidatePath("/app/configuracoes");
   revalidatePath("/app");

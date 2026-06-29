@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,22 +30,32 @@ const formSchema = z
   .object({
     shop_name: z.string().trim().min(2, "Nome muito curto"),
     owner_name: z.string().trim().min(2, "Seu nome muito curto"),
-    whatsapp: z.string().trim().min(8, "WhatsApp inválido"),
-    email: z.string().trim().email("Email inválido"),
-    password: z.string().min(8, "Mínimo 8 caracteres"),
+    whatsapp: z.string().trim().min(8, "WhatsApp invalido"),
+    email: z.string().trim().email("Email invalido"),
+    password: z.string().min(8, "Minimo 8 caracteres"),
     confirm: z.string().min(8, "Confirme a senha"),
   })
   .refine((v) => v.password === v.confirm, {
     path: ["confirm"],
-    message: "As senhas não conferem",
+    message: "As senhas nao conferem",
   });
 
 type FormValues = z.infer<typeof formSchema>;
+type SignupMode = "trial" | "paid";
+type BillingCycle = "monthly" | "annual";
 
-export function SignupForm() {
+export function SignupForm({
+  mode = "trial",
+  plan,
+  billing = "monthly",
+}: {
+  mode?: SignupMode;
+  plan?: string;
+  billing?: BillingCycle;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [_emailSubmitted, setEmailSubmitted] = useState<string | null>(null);
+  const paidSignup = mode === "paid";
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -67,12 +77,22 @@ export function SignupForm() {
     fd.set("email", values.email);
     fd.set("password", values.password);
     fd.set("confirm", values.confirm);
+    fd.set("mode", mode);
+    if (plan) fd.set("plan", plan);
+    fd.set("billing", billing);
 
     startTransition(async () => {
       const result = await signupTenant(fd);
       if (result.ok) {
-        setEmailSubmitted(result.email);
-        router.push(`/signup/success?email=${encodeURIComponent(result.email)}`);
+        const params = new URLSearchParams({
+          email: result.email,
+          mode: result.mode,
+          shop: result.shopName,
+          plan: result.planName,
+          amount: String(result.amountCents),
+          billing: result.billing,
+        });
+        router.push(`/signup/success?${params.toString()}`);
       } else if (result.fieldErrors) {
         for (const [k, msg] of Object.entries(result.fieldErrors)) {
           form.setError(k as keyof FormValues, { message: msg });
@@ -86,7 +106,6 @@ export function SignupForm() {
 
   return (
     <main className="grid min-h-[100dvh] bg-zinc-950 text-white lg:grid-cols-[1.1fr_1fr]">
-      {/* Form column */}
       <section className="flex items-center justify-center px-4 py-10 sm:px-6 sm:py-14">
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3">
@@ -94,22 +113,30 @@ export function SignupForm() {
               <PetsistemLogo tone="light" className="w-32" />
             </div>
             <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.625rem] font-semibold text-emerald-300">
-              Cadastro
+              {paidSignup ? "Plano escolhido" : "Cadastro"}
             </span>
           </div>
 
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Bora abrir sua loja
+            {paidSignup ? "Finalize sua loja com Pix" : "Bora abrir sua loja"}
           </h1>
           <p className="mt-3 text-sm leading-6 text-zinc-400">
-            Em menos de 1 minuto seu petshop tá no ar. 7 dias grátis pra testar
-            tudo, sem precisar cartão.
+            {paidSignup
+              ? "Cadastre a loja, pague via Pix e envie o comprovante. O Admin Master valida manualmente e libera seu login."
+              : "Em menos de 1 minuto seu petshop fica no ar. 7 dias gratis pra testar tudo, sem cartao."}
           </p>
 
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="mt-8 space-y-4"
-          >
+          {paidSignup ? (
+            <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-50">
+              <p className="font-semibold">Pagamento apos cadastro</p>
+              <p className="mt-1 text-xs leading-5 text-emerald-100">
+                Plano: {plan ?? "selecionado"} · {billing === "annual" ? "anual" : "mensal"}.
+                A conta fica como solicitacao ate validacao do Pix.
+              </p>
+            </div>
+          ) : null}
+
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-8 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="shop_name" className="text-zinc-200">
                 Nome da loja
@@ -190,7 +217,7 @@ export function SignupForm() {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Mínimo 8"
+                  placeholder="Minimo 8"
                   autoComplete="new-password"
                   className="border-white/10 bg-white/5 text-white placeholder:text-zinc-500 focus-visible:border-emerald-400 focus-visible:ring-emerald-400/30"
                   {...form.register("password")}
@@ -229,19 +256,19 @@ export function SignupForm() {
               {pending ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Criando sua loja…
+                  Criando sua loja...
                 </>
               ) : (
                 <>
                   <Zap className="size-4" />
-                  Criar minha loja grátis
+                  {paidSignup ? "Cadastrar e ver Pix" : "Criar minha loja gratis"}
                   <ArrowRight className="size-4" />
                 </>
               )}
             </Button>
 
             <p className="text-center text-xs text-zinc-500">
-              Já tem conta?{" "}
+              Ja tem conta?{" "}
               <Link
                 href="/login"
                 className="font-semibold text-zinc-300 underline underline-offset-2 hover:text-white"
@@ -261,7 +288,6 @@ export function SignupForm() {
         </div>
       </section>
 
-      {/* Marketing side */}
       <aside className="hidden border-l border-white/5 bg-gradient-to-br from-zinc-900 to-zinc-950 lg:block">
         <div className="relative flex h-full flex-col justify-center overflow-hidden px-12 py-16">
           <div
@@ -273,14 +299,14 @@ export function SignupForm() {
             }}
           />
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-25">
-            <PawPrint className="absolute right-[10%] top-20 size-6 text-emerald-300/50 rotate-12" />
+            <PawPrint className="absolute right-[10%] top-20 size-6 rotate-12 text-emerald-300/50" />
             <Sparkles className="absolute left-[12%] top-40 size-5 text-amber-300/50" />
-            <PawPrint className="absolute left-[18%] bottom-32 size-5 text-pink-300/40 rotate-45" />
+            <PawPrint className="absolute left-[18%] bottom-32 size-5 rotate-45 text-pink-300/40" />
           </div>
 
           <div className="max-w-md">
             <h2 className="text-3xl font-semibold tracking-tight">
-              O que vai estar pronto quando você logar
+              O que vai estar pronto quando voce logar
             </h2>
             <ul className="mt-8 space-y-5 text-sm">
               <li className="flex items-start gap-3">
@@ -288,10 +314,9 @@ export function SignupForm() {
                   <Store className="size-4" />
                 </div>
                 <div>
-                  <p className="font-semibold">Subdomínio próprio</p>
+                  <p className="font-semibold">Subdominio proprio</p>
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    A gente já cria um endereço pra sua loja. Você troca depois
-                    se quiser.
+                    A gente cria um endereco pra sua loja. Voce troca depois se quiser.
                   </p>
                 </div>
               </li>
@@ -300,10 +325,9 @@ export function SignupForm() {
                   <Sparkles className="size-4" />
                 </div>
                 <div>
-                  <p className="font-semibold">Banho e tosa + veterinária</p>
+                  <p className="font-semibold">Banho e tosa + veterinaria</p>
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    Calendários separados já configurados, prontos pra receber
-                    agendamento.
+                    Calendarios separados prontos pra receber agendamento.
                   </p>
                 </div>
               </li>
@@ -312,10 +336,9 @@ export function SignupForm() {
                   <User className="size-4" />
                 </div>
                 <div>
-                  <p className="font-semibold">Você como dono</p>
+                  <p className="font-semibold">Voce como dono</p>
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    Cadastra atendentes e veterinários no painel de Funcionários.
-                    Cada um ganha login automático.
+                    Cadastra atendentes e veterinarios depois, cada um com login proprio.
                   </p>
                 </div>
               </li>
@@ -326,8 +349,7 @@ export function SignupForm() {
                 <div>
                   <p className="font-semibold">Email pra confirmar</p>
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    A gente manda um link pra confirmar sua conta antes do
-                    primeiro login. Confere a caixa de entrada.
+                    A gente manda um link antes do primeiro login.
                   </p>
                 </div>
               </li>
@@ -339,17 +361,18 @@ export function SignupForm() {
                 Sem pegadinha
               </div>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
-                7 dias inteiros pra testar com tudo liberado. Quando acabar,
-                você escolhe o plano e paga via Pix. Sem cobrança automática.
+                {paidSignup
+                  ? "Pagamento via Pix manual. Envie o comprovante no WhatsApp oficial e aguarde validacao."
+                  : "7 dias inteiros pra testar com tudo liberado. Quando acabar, voce escolhe o plano e paga via Pix."}
               </p>
               <ul className="mt-3 space-y-1.5 text-xs text-zinc-400">
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="size-3.5 text-emerald-400" />
-                  Sem cartão de crédito
+                  Sem cartao de credito no teste gratis
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="size-3.5 text-emerald-400" />
-                  Cancela quando quiser
+                  Validacao manual por Admin Master no plano pago
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="size-3.5 text-emerald-400" />
