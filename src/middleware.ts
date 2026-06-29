@@ -23,14 +23,6 @@ const ROOT_DOMAINS = (
   .map((d) => d.trim().toLowerCase())
   .concat(["petsistem.vercel.app", "localhost"]);
 
-// Paths that should always render at the apex even when the user types them
-// directly — never get rewritten to /marketing.
-const APEX_APP_PATHS = new Set([
-  "/login",
-  "/signup",
-  "/marketing",
-]);
-
 type HostKind =
   | { kind: "tenant"; slug: string }
   | { kind: "app" } // app.petsistem.com.br
@@ -56,12 +48,16 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl;
   const host = req.headers.get("host") ?? "";
   const cls = classifyHost(host);
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-petsistem-pathname", url.pathname);
 
   if (cls.kind === "tenant") {
-    if (url.pathname.startsWith("/loja/")) return NextResponse.next();
+    if (url.pathname.startsWith("/loja/")) {
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
     const rewritten = url.clone();
     rewritten.pathname = `/loja/${cls.slug}${url.pathname === "/" ? "" : url.pathname}`;
-    return NextResponse.rewrite(rewritten);
+    return NextResponse.rewrite(rewritten, { request: { headers: requestHeaders } });
   }
 
   if (cls.kind === "apex") {
@@ -70,14 +66,13 @@ export function middleware(req: NextRequest) {
     if (url.pathname === "/") {
       const rewritten = url.clone();
       rewritten.pathname = "/marketing";
-      return NextResponse.rewrite(rewritten);
+      return NextResponse.rewrite(rewritten, { request: { headers: requestHeaders } });
     }
-    if (APEX_APP_PATHS.has(url.pathname)) return NextResponse.next();
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // app subdomain or anything else — pass through unchanged.
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

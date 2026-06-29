@@ -6,7 +6,7 @@ import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function reportSubscriptionPaid(subscriptionId: string) {
-  const { session, membership } = await requireTenant();
+  const { session, membership } = await requireTenant({ allowBlocked: true });
   if (!hasRole(membership, ["owner"])) {
     return { ok: false as const, error: "Apenas o dono pode informar pagamento." };
   }

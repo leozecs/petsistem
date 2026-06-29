@@ -2,10 +2,14 @@ import { redirect } from "next/navigation";
 import { requireTenant, hasRole } from "@/lib/auth/require-tenant";
 import { createClient } from "@/lib/supabase/server";
 import { ConsultasView, type ClinicalPet } from "@/components/consultas/consultas-view";
+import { isRouteAllowedByPlan } from "@/lib/billing/plan-rules";
 
 export default async function ConsultasPage() {
   const { membership } = await requireTenant();
   if (!hasRole(membership, ["owner", "veterinarian"])) redirect("/app");
+  if (!isRouteAllowedByPlan(membership.petshop.planName, "/app/consultas")) {
+    redirect("/app?error=plan-gated");
+  }
   const supabase = await createClient();
   if (!supabase) redirect("/login?error=supabase-not-configured");
 

@@ -112,6 +112,8 @@ export async function markPaymentPaid(
   // Cascading: subscription também vai pra "paid"
   revalidatePath("/admin-master/cobrancas");
   revalidatePath("/admin-master/assinaturas");
+  revalidatePath("/app/assinatura");
+  revalidatePath("/app", "layout");
   return { ok: true };
 }
 

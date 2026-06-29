@@ -51,8 +51,32 @@ export async function changePetshopPlan(
     .eq("id", parsed.data.petshopId);
   if (error) return { ok: false, error: error.message };
 
+  const { data: latestSub } = await admin
+    .from("subscriptions")
+    .select("id, status")
+    .eq("petshop_id", parsed.data.petshopId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestSub && latestSub.status !== "paid") {
+    const { error: subError } = await admin
+      .from("subscriptions")
+      .update({
+        plan_name: plan.name,
+        amount_cents: plan.price_cents,
+        updated_by: me.id,
+      })
+      .eq("id", latestSub.id);
+    if (subError) return { ok: false, error: subError.message };
+  }
+
   revalidatePath("/admin-master/assinaturas");
   revalidatePath("/admin-master/lojas");
+  revalidatePath("/admin-master/cobrancas");
+  revalidatePath("/admin-master", "layout");
+  revalidatePath("/app", "layout");
   return { ok: true };
 }
 
@@ -113,6 +137,8 @@ export async function renewSubscription(
 
   revalidatePath("/admin-master/assinaturas");
   revalidatePath("/admin-master/cobrancas");
+  revalidatePath("/app/assinatura");
+  revalidatePath("/app", "layout");
   return { ok: true };
 }
 

@@ -13,16 +13,29 @@ export type EmployeeFormState = {
   fieldErrors?: Record<string, string>;
 };
 
+type TeamProfile = "attendant" | "veterinarian";
+
+function parseSpecialties(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
 // ---------------------------------------------------------------------------
 // CREATE — provisions an attendant login alongside the employees row
 // ---------------------------------------------------------------------------
 
 const createSchema = z.object({
+  profile: z.enum(["attendant", "veterinarian"]).default("attendant"),
   name: z.string().trim().min(2, "Nome muito curto").max(120),
-  job_title: z.string().trim().min(1, "Cargo obrigatório").max(80),
+  job_title: z.string().trim().max(80).optional(),
+  crmv: z.string().trim().max(40).optional(),
   phone: z.string().trim().max(40).optional(),
   email: z.string().trim().toLowerCase().email("Email inválido"),
   password: z.string().min(8, "Senha precisa de pelo menos 8 caracteres").max(72),
+  specialties: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
 
 /**
@@ -43,17 +56,32 @@ const createSchema = z.object({
 export async function createEmployeeWithLogin(
   formData: FormData,
 ): Promise<EmployeeFormState> {
+  formData.set("profile", "attendant");
+  return saveEmployee({ ok: false }, formData);
+}
+
+export async function createVeterinarianWithLogin(
+  formData: FormData,
+): Promise<EmployeeFormState> {
+  formData.set("profile", "veterinarian");
+  return saveEmployee({ ok: false }, formData);
+}
+
+async function createTeamMember(formData: FormData): Promise<EmployeeFormState> {
   const { session, membership } = await requireTenant();
   if (!hasRole(membership, ["owner"])) {
-    return { ok: false, error: "Apenas o dono pode cadastrar funcionários." };
+    return { ok: false, error: "Apenas o dono pode cadastrar equipe." };
   }
 
   const raw = {
+    profile: String(formData.get("profile") ?? "attendant") as TeamProfile,
     name: String(formData.get("name") ?? ""),
     job_title: String(formData.get("job_title") ?? ""),
+    crmv: String(formData.get("crmv") ?? ""),
     phone: String(formData.get("phone") ?? "") || undefined,
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
+    specialties: parseSpecialties(String(formData.get("specialties") ?? "")),
   };
 
   const parsed = createSchema.safeParse(raw);
@@ -65,10 +93,22 @@ export async function createEmployeeWithLogin(
     }
     return { ok: false, fieldErrors };
   }
+  if (parsed.data.profile === "attendant" && !parsed.data.job_title) {
+    return { ok: false, fieldErrors: { job_title: "Cargo obrigatório" } };
+  }
+  if (parsed.data.profile === "veterinarian" && !parsed.data.crmv) {
+    return { ok: false, fieldErrors: { crmv: "CRMV obrigatório" } };
+  }
 
   // Plan limit: count active memberships against plan.max_users before
   // burning an Auth user slot (criar auth + rollback é caro).
   const limits = await getPlanLimits(membership.petshopId);
+  if (limits && parsed.data.profile === "veterinarian" && !limits.allowsVeterinarian) {
+    return {
+      ok: false,
+      error: `O plano ${limits.planName} não libera Veterinários/Consultas. Troque para Profissional ou Premium.`,
+    };
+  }
   if (limits && limits.currentUsers >= limits.maxUsers) {
     return {
       ok: false,
@@ -130,7 +170,7 @@ export async function createEmployeeWithLogin(
     .insert({
       petshop_id: membership.petshopId,
       user_id: newUserId,
-      role: "attendant",
+      role: parsed.data.profile,
       status: "active",
       created_by: session.user.id,
     });
@@ -139,29 +179,55 @@ export async function createEmployeeWithLogin(
     return { ok: false, error: memErr.message };
   }
 
-  // 4) Insert employees row linked to the new user
-  const supabase = await createClient();
-  if (!supabase) {
+  // 4) Insert role-specific profile row linked to the new user.
+  const insertResult =
+    parsed.data.profile === "veterinarian"
+      ? await admin
+          .from("veterinarians")
+          .insert({
+            petshop_id: membership.petshopId,
+            name: parsed.data.name,
+            crmv: parsed.data.crmv ?? null,
+            phone: parsed.data.phone ?? null,
+            email: parsed.data.email,
+            specialties: parsed.data.specialties,
+            active: true,
+            user_id: newUserId,
+            created_by: session.user.id,
+          })
+          .select("id")
+          .single()
+      : await admin
+          .from("employees")
+          .insert({
+            petshop_id: membership.petshopId,
+            name: parsed.data.name,
+            job_title: parsed.data.job_title ?? "Atendente",
+            phone: parsed.data.phone ?? null,
+            email: parsed.data.email,
+            role: "attendant",
+            active: true,
+            user_id: newUserId,
+            created_by: session.user.id,
+          })
+          .select("id")
+          .single();
+  if (insertResult.error) {
     await rollbackAuth();
-    return { ok: false, error: "Supabase indisponível." };
-  }
-  const { error: empErr } = await supabase.from("employees").insert({
-    petshop_id: membership.petshopId,
-    name: parsed.data.name,
-    job_title: parsed.data.job_title,
-    phone: parsed.data.phone ?? null,
-    email: parsed.data.email,
-    role: "attendant",
-    active: true,
-    user_id: newUserId,
-    created_by: session.user.id,
-  });
-  if (empErr) {
-    await rollbackAuth();
-    return { ok: false, error: empErr.message };
+    return { ok: false, error: insertResult.error.message };
   }
 
+  await admin.from("audit_logs").insert({
+    petshop_id: membership.petshopId,
+    actor_id: session.user.id,
+    action: parsed.data.profile === "veterinarian" ? "veterinarian.created" : "employee.created",
+    entity_table: parsed.data.profile === "veterinarian" ? "veterinarians" : "employees",
+    entity_id: insertResult.data.id,
+    metadata: { user_id: newUserId, role: parsed.data.profile },
+  });
+
   revalidatePath("/app/funcionarios");
+  revalidatePath("/app/veterinarios");
   return { ok: true };
 }
 
@@ -170,10 +236,13 @@ export async function createEmployeeWithLogin(
 // ---------------------------------------------------------------------------
 
 const editSchema = z.object({
+  profile: z.enum(["attendant", "veterinarian"]).default("attendant"),
   id: z.string().uuid(),
   name: z.string().trim().min(1, "Nome obrigatório").max(120),
-  job_title: z.string().trim().min(1, "Cargo obrigatório").max(80),
+  job_title: z.string().trim().max(80).optional(),
+  crmv: z.string().trim().max(40).optional(),
   phone: z.string().trim().max(40).optional(),
+  specialties: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
   active: z.boolean(),
 });
 
@@ -185,12 +254,18 @@ export async function saveEmployee(
   if (!hasRole(membership, ["owner"])) {
     return { ok: false, error: "Apenas o dono pode gerenciar funcionários." };
   }
+  if (!String(formData.get("id") ?? "")) {
+    return createTeamMember(formData);
+  }
 
   const raw = {
+    profile: String(formData.get("profile") ?? "attendant") as TeamProfile,
     id: String(formData.get("id") ?? ""),
     name: String(formData.get("name") ?? ""),
     job_title: String(formData.get("job_title") ?? ""),
+    crmv: String(formData.get("crmv") ?? ""),
     phone: String(formData.get("phone") ?? "") || undefined,
+    specialties: parseSpecialties(String(formData.get("specialties") ?? "")),
     active: String(formData.get("active") ?? "true") === "true",
   };
 
@@ -203,32 +278,51 @@ export async function saveEmployee(
     }
     return { ok: false, fieldErrors };
   }
+  if (parsed.data.profile === "attendant" && !parsed.data.job_title) {
+    return { ok: false, fieldErrors: { job_title: "Cargo obrigatório" } };
+  }
+  if (parsed.data.profile === "veterinarian" && !parsed.data.crmv) {
+    return { ok: false, fieldErrors: { crmv: "CRMV obrigatório" } };
+  }
 
   const supabase = await createClient();
   if (!supabase) return { ok: false, error: "Supabase indisponível." };
 
-  const { error } = await supabase
-    .from("employees")
-    .update({
-      name: parsed.data.name,
-      job_title: parsed.data.job_title,
-      phone: parsed.data.phone ?? null,
-      active: parsed.data.active,
-      updated_by: session.user.id,
-    })
-    .eq("id", parsed.data.id)
-    .eq("petshop_id", membership.petshopId);
+  const { data: memberRow, error } =
+    parsed.data.profile === "veterinarian"
+      ? await supabase
+          .from("veterinarians")
+          .update({
+            name: parsed.data.name,
+            crmv: parsed.data.crmv ?? null,
+            phone: parsed.data.phone ?? null,
+            specialties: parsed.data.specialties,
+            active: parsed.data.active,
+            updated_by: session.user.id,
+          })
+          .eq("id", parsed.data.id)
+          .eq("petshop_id", membership.petshopId)
+          .select("user_id")
+          .maybeSingle()
+      : await supabase
+          .from("employees")
+          .update({
+            name: parsed.data.name,
+            job_title: parsed.data.job_title ?? "Atendente",
+            phone: parsed.data.phone ?? null,
+            active: parsed.data.active,
+            updated_by: session.user.id,
+          })
+          .eq("id", parsed.data.id)
+          .eq("petshop_id", membership.petshopId)
+          .select("user_id")
+          .maybeSingle();
   if (error) return { ok: false, error: error.message };
 
   // Sync membership status with employees.active. If the funcionário is
   // deactivated, the attendant login should also be suspended (status='blocked')
   // so they can't sign in. Activating brings it back.
-  const { data: emp } = await supabase
-    .from("employees")
-    .select("user_id")
-    .eq("id", parsed.data.id)
-    .maybeSingle();
-  if (emp?.user_id) {
+  if (memberRow?.user_id) {
     const admin = createAdminClient();
     if (admin) {
       await admin
@@ -237,12 +331,13 @@ export async function saveEmployee(
           status: parsed.data.active ? "active" : "blocked",
           updated_by: session.user.id,
         })
-        .eq("user_id", emp.user_id)
+        .eq("user_id", memberRow.user_id)
         .eq("petshop_id", membership.petshopId);
     }
   }
 
   revalidatePath("/app/funcionarios");
+  revalidatePath("/app/veterinarios");
   return { ok: true };
 }
 
@@ -252,6 +347,7 @@ export async function saveEmployee(
 
 export async function deleteEmployee(
   id: string,
+  profile: TeamProfile = "attendant",
 ): Promise<{ ok: boolean; error?: string }> {
   const { session, membership } = await requireTenant();
   if (!hasRole(membership, ["owner"])) {
@@ -260,26 +356,43 @@ export async function deleteEmployee(
   const supabase = await createClient();
   if (!supabase) return { ok: false, error: "Supabase indisponível." };
 
-  const { data: emp } = await supabase
-    .from("employees")
-    .select("id, user_id")
-    .eq("id", id)
-    .eq("petshop_id", membership.petshopId)
-    .maybeSingle();
-  if (!emp) return { ok: false, error: "Funcionário não encontrado." };
+  const { data: memberRow } =
+    profile === "veterinarian"
+      ? await supabase
+          .from("veterinarians")
+          .select("id, user_id")
+          .eq("id", id)
+          .eq("petshop_id", membership.petshopId)
+          .maybeSingle()
+      : await supabase
+          .from("employees")
+          .select("id, user_id")
+          .eq("id", id)
+          .eq("petshop_id", membership.petshopId)
+          .maybeSingle();
+  if (!memberRow) return { ok: false, error: "Membro da equipe não encontrado." };
 
-  const { error } = await supabase
-    .from("employees")
-    .update({
-      deleted_at: new Date().toISOString(),
-      deleted_by: session.user.id,
-    })
-    .eq("id", id)
-    .eq("petshop_id", membership.petshopId)
-    .is("deleted_at", null);
+  const payload = {
+    deleted_at: new Date().toISOString(),
+    deleted_by: session.user.id,
+  };
+  const { error } =
+    profile === "veterinarian"
+      ? await supabase
+          .from("veterinarians")
+          .update(payload)
+          .eq("id", id)
+          .eq("petshop_id", membership.petshopId)
+          .is("deleted_at", null)
+      : await supabase
+          .from("employees")
+          .update(payload)
+          .eq("id", id)
+          .eq("petshop_id", membership.petshopId)
+          .is("deleted_at", null);
   if (error) return { ok: false, error: error.message };
 
-  if (emp.user_id) {
+  if (memberRow.user_id) {
     const admin = createAdminClient();
     if (admin) {
       // Block the membership so the login can no longer access this tenant.
@@ -290,12 +403,13 @@ export async function deleteEmployee(
           status: "blocked",
           updated_by: session.user.id,
         })
-        .eq("user_id", emp.user_id)
+        .eq("user_id", memberRow.user_id)
         .eq("petshop_id", membership.petshopId);
     }
   }
 
   revalidatePath("/app/funcionarios");
+  revalidatePath("/app/veterinarios");
   return { ok: true };
 }
 

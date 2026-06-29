@@ -43,6 +43,7 @@ export type PaymentRow = {
   subscriptionId: string;
   petshopName: string;
   subdomain: string;
+  planName: string;
   amountCents: number;
   dueDate: string;
   paidAt: string | null;
@@ -236,6 +237,7 @@ export function CobrancasManager({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Loja</TableHead>
+                    <TableHead>Plano atual</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Vencimento</TableHead>
                     <TableHead>Pago em</TableHead>
@@ -259,6 +261,7 @@ export function CobrancasManager({
                           </div>
                         </div>
                       </TableCell>
+                      <TableCell>{p.planName}</TableCell>
                       <TableCell>{formatBRL(p.amountCents)}</TableCell>
                       <TableCell>
                         {BR_DATE.format(new Date(`${p.dueDate}T12:00`))}

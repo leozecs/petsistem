@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { AppShell } from "@/components/app/app-shell";
 import { getSession } from "@/lib/auth/session";
 import { isPetshopOperational } from "@/lib/petshop-status";
@@ -17,7 +18,10 @@ export default async function TenantAppLayout({ children }: { children: React.Re
     redirect("/login?error=no-tenant");
   }
 
-  if (!isPetshopOperational(session.activeMembership.petshop.status)) {
+  const pathname = (await headers()).get("x-petsistem-pathname") ?? "";
+  const allowBillingRecovery = pathname === "/app/assinatura";
+
+  if (!allowBillingRecovery && !isPetshopOperational(session.activeMembership.petshop.status)) {
     redirect("/login?error=tenant-blocked");
   }
 

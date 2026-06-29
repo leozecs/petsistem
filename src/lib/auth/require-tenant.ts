@@ -7,7 +7,7 @@ export type TenantContext = {
   membership: Membership;
 };
 
-export async function requireTenant(): Promise<TenantContext> {
+export async function requireTenant(options?: { allowBlocked?: boolean }): Promise<TenantContext> {
   const session = await getSession();
   if (!session) {
     redirect("/login?error=session-required");
@@ -18,7 +18,7 @@ export async function requireTenant(): Promise<TenantContext> {
     }
     redirect("/login?error=no-tenant");
   }
-  if (!isPetshopOperational(session.activeMembership.petshop.status)) {
+  if (!options?.allowBlocked && !isPetshopOperational(session.activeMembership.petshop.status)) {
     redirect("/login?error=tenant-blocked");
   }
   return { session, membership: session.activeMembership };

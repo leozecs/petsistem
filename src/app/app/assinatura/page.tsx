@@ -28,7 +28,7 @@ function formatDateOnly(value: string): string {
 }
 
 export default async function SubscriptionPage() {
-  const { membership } = await requireTenant();
+  const { membership } = await requireTenant({ allowBlocked: true });
   if (!hasRole(membership, ["owner"])) redirect("/app");
 
   const supabase = await createClient();
@@ -95,6 +95,7 @@ export default async function SubscriptionPage() {
         title="Minha Assinatura"
         description={`Plano, vencimento e status financeiro de ${membership.petshop.name}.`}
       />
+      {membership.petshop.status === "blocked" ? <div className="mb-5 flex items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 p-4 text-rose-950"><BellRing className="mt-0.5 size-5 shrink-0" /><div><p className="font-semibold">Trial ou assinatura expirada</p><p className="mt-1 text-sm">Regularize no Pix abaixo. Após validação manual do Admin Master, login libera de novo.</p></div></div> : null}
       {subscription.status !== "paid" ? <div className="mb-5 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950"><BellRing className="mt-0.5 size-5 shrink-0" /><div><p className="font-semibold">Pagamento mensal pendente</p><p className="mt-1 text-sm">Pague até o vencimento. Após 3 dias de atraso, o acesso do dono e da equipe poderá ser suspenso até a regularização.</p></div></div> : null}
       <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
         <Card className="rounded-lg border-zinc-200 bg-white shadow-none">

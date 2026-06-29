@@ -30,7 +30,7 @@ export default async function AdminCobrancasPage() {
       .limit(200),
     admin
       .from("subscriptions")
-      .select("id, petshop_id, amount_cents, due_date, status")
+      .select("id, petshop_id, plan_name, amount_cents, due_date, status")
       .is("deleted_at", null),
     admin
       .from("petshops")
@@ -64,6 +64,7 @@ export default async function AdminCobrancasPage() {
       petshopName: shop?.name ?? "—",
       subdomain: shop?.subdomain ?? "—",
       amountCents: p.amount_cents,
+      planName: sub?.plan_name ?? "—",
       dueDate: sub?.due_date ?? "",
       paidAt: p.paid_at,
       status: p.status,
@@ -81,6 +82,7 @@ export default async function AdminCobrancasPage() {
       petshopName: shop?.name ?? "—",
       subdomain: shop?.subdomain ?? "—",
       amountCents: s.amount_cents,
+      planName: s.plan_name,
       dueDate: s.due_date,
       paidAt: null,
       status: "no_payment",

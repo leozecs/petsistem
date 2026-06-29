@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { GlobalRole, MemberRole, SessionContext } from "@/lib/auth/session";
+import { isRouteAllowedByPlan } from "@/lib/billing/plan-rules";
 
 export type NavItem = {
   href: string;
@@ -75,9 +76,12 @@ export function navigationForSession(session: SessionContext): NavItem[] {
     return adminMasterNav;
   }
   const role: MemberRole | undefined = session.activeMembership?.role;
-  if (role === "owner") return ownerNav;
-  if (role === "attendant") return attendantNav;
-  if (role === "veterinarian") return veterinarianNav;
+  const planName = session.activeMembership?.petshop.planName;
+  const applyPlan = (items: NavItem[]) =>
+    items.filter((item) => isRouteAllowedByPlan(planName, item.href));
+  if (role === "owner") return applyPlan(ownerNav);
+  if (role === "attendant") return applyPlan(attendantNav);
+  if (role === "veterinarian") return applyPlan(veterinarianNav);
   return [];
 }
 

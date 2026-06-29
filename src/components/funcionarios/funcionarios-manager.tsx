@@ -39,6 +39,13 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -51,6 +58,7 @@ import { StatusPill } from "@/components/shared/status-pill";
 import { SectionHeading } from "@/components/app/section-heading";
 import {
   createEmployeeWithLogin,
+  createVeterinarianWithLogin,
   deleteEmployee,
   getEmployeeMonthSummary,
   saveEmployee,
@@ -59,12 +67,20 @@ import {
 import type { Database } from "@/lib/supabase/database.types";
 
 type EmployeeRow = Database["public"]["Tables"]["employees"]["Row"];
+type VeterinarianRow = Database["public"]["Tables"]["veterinarians"]["Row"];
+type TeamProfile = "attendant" | "veterinarian";
+type TeamRow =
+  | (EmployeeRow & { profile: "attendant"; displayRole: "attendant"; crmv?: null; specialties?: string[] })
+  | (VeterinarianRow & { profile: "veterinarian"; displayRole: "veterinarian"; job_title: string; role: "veterinarian" });
 
 // ----- create -----
 const createFormSchema = z
   .object({
     name: z.string().trim().min(2, "Nome muito curto"),
-    job_title: z.string().trim().min(1, "Cargo obrigatório"),
+    profile: z.enum(["attendant", "veterinarian"]),
+    job_title: z.string().trim().optional(),
+    crmv: z.string().trim().optional(),
+    specialties: z.string().trim().optional(),
     phone: z.string().trim().optional(),
     email: z.string().trim().email("Email inválido"),
     password: z.string().min(8, "Senha precisa de pelo menos 8 caracteres"),
@@ -73,13 +89,24 @@ const createFormSchema = z
   .refine((v) => v.password === v.confirm, {
     path: ["confirm"],
     message: "As senhas não conferem",
+  })
+  .refine((v) => v.profile === "veterinarian" || Boolean(v.job_title?.trim()), {
+    path: ["job_title"],
+    message: "Cargo obrigatório",
+  })
+  .refine((v) => v.profile === "attendant" || Boolean(v.crmv?.trim()), {
+    path: ["crmv"],
+    message: "CRMV obrigatório",
   });
 type CreateValues = z.infer<typeof createFormSchema>;
 
 // ----- edit -----
 const editFormSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
-  job_title: z.string().trim().min(1, "Cargo obrigatório"),
+  profile: z.enum(["attendant", "veterinarian"]),
+  job_title: z.string().trim().optional(),
+  crmv: z.string().trim().optional(),
+  specialties: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   active: z.boolean(),
 });
@@ -114,13 +141,33 @@ function roleLabel(role: string) {
 
 export function FuncionariosManager({
   initialEmployees,
+  initialVeterinarians = [],
+  initialProfile = "attendant",
 }: {
   initialEmployees: EmployeeRow[];
+  initialVeterinarians?: VeterinarianRow[];
+  initialProfile?: TeamProfile;
 }) {
+  const teamRows: TeamRow[] = [
+    ...initialEmployees.map((employee) => ({
+      ...employee,
+      profile: "attendant" as const,
+      displayRole: "attendant" as const,
+      crmv: null,
+      specialties: [],
+    })),
+    ...initialVeterinarians.map((vet) => ({
+      ...vet,
+      profile: "veterinarian" as const,
+      displayRole: "veterinarian" as const,
+      job_title: "Veterinário",
+      role: "veterinarian" as const,
+    })),
+  ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [editing, setEditing] = useState<EmployeeRow | null>(null);
-  const [drawerEmp, setDrawerEmp] = useState<EmployeeRow | null>(null);
+  const [editing, setEditing] = useState<TeamRow | null>(null);
+  const [drawerEmp, setDrawerEmp] = useState<TeamRow | null>(null);
   const [summary, setSummary] = useState<EmployeeMonthSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -129,7 +176,10 @@ export function FuncionariosManager({
     resolver: zodResolver(createFormSchema),
     defaultValues: {
       name: "",
+      profile: initialProfile,
       job_title: "",
+      crmv: "",
+      specialties: "",
       phone: "",
       email: "",
       password: "",
@@ -139,13 +189,20 @@ export function FuncionariosManager({
 
   const editForm = useForm<EditValues>({
     resolver: zodResolver(editFormSchema),
-    defaultValues: { name: "", job_title: "", phone: "", active: true },
+    defaultValues: { name: "", profile: "attendant", job_title: "", crmv: "", specialties: "", phone: "", active: true },
   });
+  const createProfile = createForm.watch("profile");
+  const editProfile = editForm.watch("profile");
 
   // Whenever the drawer opens for a different employee, fetch their summary.
   useEffect(() => {
     if (!drawerEmp) {
       setSummary(null);
+      return;
+    }
+    if (drawerEmp.profile === "veterinarian") {
+      setSummary(null);
+      setSummaryLoading(false);
       return;
     }
     let cancelled = false;
@@ -164,7 +221,10 @@ export function FuncionariosManager({
   function openCreate() {
     createForm.reset({
       name: "",
+      profile: initialProfile,
       job_title: "",
+      crmv: "",
+      specialties: "",
       phone: "",
       email: "",
       password: "",
@@ -173,11 +233,14 @@ export function FuncionariosManager({
     setCreateOpen(true);
   }
 
-  function openEdit(emp: EmployeeRow) {
+  function openEdit(emp: TeamRow) {
     setEditing(emp);
     editForm.reset({
       name: emp.name,
+      profile: emp.profile,
       job_title: emp.job_title,
+      crmv: emp.profile === "veterinarian" ? emp.crmv ?? "" : "",
+      specialties: emp.profile === "veterinarian" ? emp.specialties.join(", ") : "",
       phone: emp.phone ?? "",
       active: emp.active,
     });
@@ -186,16 +249,22 @@ export function FuncionariosManager({
 
   function onSubmitCreate(values: CreateValues) {
     const fd = new FormData();
+    fd.set("profile", values.profile);
     fd.set("name", values.name);
-    fd.set("job_title", values.job_title);
+    fd.set("job_title", values.job_title ?? "");
+    fd.set("crmv", values.crmv ?? "");
+    fd.set("specialties", values.specialties ?? "");
     fd.set("phone", values.phone ?? "");
     fd.set("email", values.email);
     fd.set("password", values.password);
 
     startTransition(async () => {
-      const result = await createEmployeeWithLogin(fd);
+      const result =
+        values.profile === "veterinarian"
+          ? await createVeterinarianWithLogin(fd)
+          : await createEmployeeWithLogin(fd);
       if (result.ok) {
-        toast.success("Funcionário cadastrado · login criado como atendente");
+        toast.success(values.profile === "veterinarian" ? "Veterinário cadastrado · login criado" : "Funcionário cadastrado · login criado");
         setCreateOpen(false);
       } else if (result.fieldErrors) {
         for (const [k, msg] of Object.entries(result.fieldErrors)) {
@@ -211,15 +280,18 @@ export function FuncionariosManager({
     if (!editing) return;
     const fd = new FormData();
     fd.set("id", editing.id);
+    fd.set("profile", values.profile);
     fd.set("name", values.name);
-    fd.set("job_title", values.job_title);
+    fd.set("job_title", values.job_title ?? "");
+    fd.set("crmv", values.crmv ?? "");
+    fd.set("specialties", values.specialties ?? "");
     fd.set("phone", values.phone ?? "");
     fd.set("active", String(values.active));
 
     startTransition(async () => {
       const result = await saveEmployee({ ok: false }, fd);
       if (result.ok) {
-        toast.success("Funcionário atualizado");
+        toast.success("Equipe atualizada");
         setEditOpen(false);
       } else if (result.fieldErrors) {
         for (const [k, msg] of Object.entries(result.fieldErrors)) {
@@ -231,12 +303,12 @@ export function FuncionariosManager({
     });
   }
 
-  function handleDelete(emp: EmployeeRow) {
+  function handleDelete(emp: TeamRow) {
     if (!confirm(`Excluir ${emp.name}? O login fica suspenso, histórico preservado.`)) return;
     startTransition(async () => {
-      const result = await deleteEmployee(emp.id);
+      const result = await deleteEmployee(emp.id, emp.profile);
       if (result.ok) {
-        toast.success("Funcionário excluído · login suspenso");
+        toast.success("Membro excluído · login suspenso");
         setDrawerEmp(null);
       } else {
         toast.error(result.error ?? "Erro");
@@ -248,33 +320,33 @@ export function FuncionariosManager({
     <div>
       <SectionHeading
         title="Funcionários"
-        description="Equipe operacional. Ao cadastrar, criamos automaticamente um login como atendente."
+        description="Equipe operacional e veterinária. Ao cadastrar, criamos login com perfil correto."
         action={
           <Button
             onClick={openCreate}
             className="rounded-md bg-zinc-950 text-white hover:bg-zinc-800"
           >
             <Plus className="size-4" />
-            Novo funcionário
+            Novo membro
           </Button>
         }
       />
 
       <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
         <CardContent className="p-0">
-          {initialEmployees.length === 0 ? (
+          {teamRows.length === 0 ? (
             <div className="p-10">
               <EmptyState
                 icon={UserCog}
-                title="Sem funcionários ainda"
-                description="Cadastre seu primeiro funcionário e ele já recebe um login como atendente."
+                title="Sem equipe ainda"
+                description="Cadastre atendentes ou veterinários com login próprio."
                 action={
                   <Button
                     onClick={openCreate}
                     className="rounded-md bg-zinc-950 text-white hover:bg-zinc-800"
                   >
                     <Plus className="size-4" />
-                    Novo funcionário
+                    Novo membro
                   </Button>
                 }
               />
@@ -293,9 +365,9 @@ export function FuncionariosManager({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {initialEmployees.map((e) => (
+                  {teamRows.map((e) => (
                     <TableRow
-                      key={e.id}
+                      key={`${e.profile}-${e.id}`}
                       onClick={() => setDrawerEmp(e)}
                       className="cursor-pointer hover:bg-zinc-50"
                     >
@@ -360,7 +432,7 @@ export function FuncionariosManager({
                 {drawerEmp.user_id ? (
                   <div className="flex items-center gap-2 text-emerald-700">
                     <KeyRound className="size-3.5" />
-                    <span>Login ativo · role atendente</span>
+                    <span>Login ativo · role {roleLabel(drawerEmp.displayRole)}</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-amber-700">
@@ -491,9 +563,9 @@ export function FuncionariosManager({
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="rounded-xl border-zinc-200 bg-white sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle>Novo funcionário</DialogTitle>
+            <DialogTitle>Novo membro da equipe</DialogTitle>
             <DialogDescription>
-              Ao salvar, criamos um login (role atendente) com o email + senha definidos.
+              Escolha Atendente ou Veterinário. Login nasce com o perfil correto.
             </DialogDescription>
           </DialogHeader>
 
@@ -501,6 +573,24 @@ export function FuncionariosManager({
             onSubmit={createForm.handleSubmit(onSubmitCreate)}
             className="grid gap-4 sm:grid-cols-2"
           >
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Perfil</Label>
+              <Select
+                value={createProfile}
+                onValueChange={(value) =>
+                  createForm.setValue("profile", value as TeamProfile, { shouldValidate: true })
+                }
+              >
+                <SelectTrigger className="rounded-md">
+                  <SelectValue placeholder="Perfil" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="attendant">Atendente</SelectItem>
+                  <SelectItem value="veterinarian">Veterinário</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="c_name">Nome</Label>
               <Input id="c_name" {...createForm.register("name")} />
@@ -511,19 +601,37 @@ export function FuncionariosManager({
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="c_job">Cargo</Label>
-              <Input
-                id="c_job"
-                placeholder="Tosador, recepcionista"
-                {...createForm.register("job_title")}
-              />
-              {createForm.formState.errors.job_title ? (
-                <p className="text-xs text-rose-600">
-                  {createForm.formState.errors.job_title.message}
-                </p>
-              ) : null}
-            </div>
+            {createProfile === "veterinarian" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="c_crmv">CRMV</Label>
+                  <Input id="c_crmv" placeholder="CRMV-SP 00000" {...createForm.register("crmv")} />
+                  {createForm.formState.errors.crmv ? (
+                    <p className="text-xs text-rose-600">
+                      {createForm.formState.errors.crmv.message}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="c_specialties">Especialidades</Label>
+                  <Input id="c_specialties" placeholder="Clínica, dermatologia" {...createForm.register("specialties")} />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="c_job">Cargo</Label>
+                <Input
+                  id="c_job"
+                  placeholder="Tosador, recepcionista"
+                  {...createForm.register("job_title")}
+                />
+                {createForm.formState.errors.job_title ? (
+                  <p className="text-xs text-rose-600">
+                    {createForm.formState.errors.job_title.message}
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="c_phone">Telefone</Label>
@@ -601,7 +709,7 @@ export function FuncionariosManager({
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="rounded-xl border-zinc-200 bg-white sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Editar funcionário</DialogTitle>
+            <DialogTitle>Editar equipe</DialogTitle>
             <DialogDescription>
               Edita os dados cadastrais. Email e senha do login não são alterados aqui.
             </DialogDescription>
@@ -611,6 +719,7 @@ export function FuncionariosManager({
             onSubmit={editForm.handleSubmit(onSubmitEdit)}
             className="grid gap-4 sm:grid-cols-2"
           >
+            <input type="hidden" {...editForm.register("profile")} />
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="e_name">Nome</Label>
               <Input id="e_name" {...editForm.register("name")} />
@@ -621,15 +730,33 @@ export function FuncionariosManager({
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="e_job">Cargo</Label>
-              <Input id="e_job" {...editForm.register("job_title")} />
-              {editForm.formState.errors.job_title ? (
-                <p className="text-xs text-rose-600">
-                  {editForm.formState.errors.job_title.message}
-                </p>
-              ) : null}
-            </div>
+            {editProfile === "veterinarian" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="e_crmv">CRMV</Label>
+                  <Input id="e_crmv" {...editForm.register("crmv")} />
+                  {editForm.formState.errors.crmv ? (
+                    <p className="text-xs text-rose-600">
+                      {editForm.formState.errors.crmv.message}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="e_specialties">Especialidades</Label>
+                  <Input id="e_specialties" {...editForm.register("specialties")} />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="e_job">Cargo</Label>
+                <Input id="e_job" {...editForm.register("job_title")} />
+                {editForm.formState.errors.job_title ? (
+                  <p className="text-xs text-rose-600">
+                    {editForm.formState.errors.job_title.message}
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="e_phone">Telefone</Label>

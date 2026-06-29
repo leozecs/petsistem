@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getPlanRule } from "@/lib/billing/plan-rules";
 
 export type PlanLimits = {
   planName: string;
@@ -30,9 +31,10 @@ export async function getPlanLimits(
     .maybeSingle();
   if (!petshop) return null;
 
-  let maxUsers = 5;
-  let allowsVeterinarian = true;
-  let planName = petshop.plan_name ?? "Profissional";
+  const fallbackRule = getPlanRule(petshop.plan_name);
+  let maxUsers = fallbackRule.maxUsers;
+  let allowsVeterinarian = fallbackRule.allowsVeterinarian;
+  let planName = petshop.plan_name ?? fallbackRule.name;
 
   if (petshop.plan_id) {
     const { data: plan } = await admin
@@ -41,8 +43,9 @@ export async function getPlanLimits(
       .eq("id", petshop.plan_id)
       .maybeSingle();
     if (plan) {
-      maxUsers = plan.max_users;
-      allowsVeterinarian = plan.allows_veterinarian;
+      const rule = getPlanRule(plan.name);
+      maxUsers = plan.max_users ?? rule.maxUsers;
+      allowsVeterinarian = plan.allows_veterinarian ?? rule.allowsVeterinarian;
       planName = plan.name;
     }
   }
