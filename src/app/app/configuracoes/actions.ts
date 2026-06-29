@@ -390,3 +390,149 @@ export async function removePetshopLogo(): Promise<ActionState> {
   revalidatePath("/app");
   return { ok: true };
 }
+
+const deleteAccountSchema = z.object({
+  confirm_subdomain: z.string().trim().min(1),
+});
+
+async function purgeBucketPrefix(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  bucket: string,
+  prefix: string,
+) {
+  const queue: string[] = [prefix];
+  while (queue.length > 0) {
+    const dir = queue.shift()!;
+    const { data: items, error: listError } = await admin.storage
+      .from(bucket)
+      .list(dir, { limit: 1000 });
+    if (listError) throw new Error(listError.message);
+    if (!items || items.length === 0) continue;
+
+    const files = items
+      .filter((item) => item.id !== null)
+      .map((item) => `${dir}/${item.name}`);
+    const folders = items.filter((item) => item.id === null);
+
+    for (let i = 0; i < files.length; i += 100) {
+      const { error: removeError } = await admin.storage
+        .from(bucket)
+        .remove(files.slice(i, i + 100));
+      if (removeError) throw new Error(removeError.message);
+    }
+    for (const folder of folders) queue.push(`${dir}/${folder.name}`);
+  }
+}
+
+/**
+ * HARD DELETE self-service da loja ativa. Owner only.
+ *
+ * Segurança:
+ * - Usa `requireTenant` + role owner.
+ * - Confirma subdomínio exato antes de qualquer mutação.
+ * - Todas as queries são escopadas ao `membership.petshopId`.
+ * - Deleta Auth apenas de usuários sem outra membership e sem global_role admin.
+ * - Registra auditoria global sem `petshop_id`, pois a loja será apagada.
+ */
+export async function deleteOwnPetshopAccount(input: {
+  confirm_subdomain: string;
+}): Promise<ActionState> {
+  const { session, membership } = await requireTenant();
+  if (!hasRole(membership, ["owner"])) {
+    return { ok: false, error: "Apenas o dono pode excluir a conta da loja." };
+  }
+
+  const parsed = deleteAccountSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Confirmação inválida." };
+
+  const expected = membership.petshop.subdomain.trim().toLowerCase();
+  if (parsed.data.confirm_subdomain.trim().toLowerCase() !== expected) {
+    return {
+      ok: false,
+      error: `Digite exatamente "${membership.petshop.subdomain}" para confirmar.`,
+    };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) return { ok: false, error: "Service role indisponível." };
+
+  const petshopId = membership.petshopId;
+
+  const { data: shop } = await admin
+    .from("petshops")
+    .select("id, name, subdomain")
+    .eq("id", petshopId)
+    .maybeSingle();
+  if (!shop) return { ok: false, error: "Loja não encontrada." };
+
+  const { data: memberRows } = await admin
+    .from("memberships")
+    .select("user_id")
+    .eq("petshop_id", petshopId)
+    .is("deleted_at", null);
+
+  const userIds = Array.from(new Set((memberRows ?? []).map((row) => row.user_id).filter(Boolean)));
+  const authUsersToDelete: string[] = [];
+
+  for (const userId of userIds) {
+    const [{ data: profile }, { count: otherMemberships }] = await Promise.all([
+      admin.from("users").select("global_role").eq("id", userId).maybeSingle(),
+      admin
+        .from("memberships")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .neq("petshop_id", petshopId)
+        .is("deleted_at", null),
+    ]);
+
+    if (profile?.global_role !== "admin_master" && (otherMemberships ?? 0) === 0) {
+      authUsersToDelete.push(userId);
+    }
+  }
+
+  await admin.from("audit_logs").insert({
+    petshop_id: null,
+    actor_id: session.user.id,
+    action: "petshop.self_delete.requested",
+    entity_table: "petshops",
+    entity_id: petshopId,
+    metadata: {
+      petshop_id: petshopId,
+      subdomain: shop.subdomain,
+      name: shop.name,
+      auth_users_to_delete: authUsersToDelete.length,
+    },
+  });
+
+  try {
+    await purgeBucketPrefix(admin, "appointment-photos", petshopId);
+    await purgeBucketPrefix(admin, "petshop-logos", petshopId);
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Erro ao apagar arquivos da loja.",
+    };
+  }
+
+  const { error: deleteError } = await admin
+    .from("petshops")
+    .delete()
+    .eq("id", petshopId);
+  if (deleteError) return { ok: false, error: deleteError.message };
+
+  for (const userId of authUsersToDelete) {
+    const { error } = await admin.auth.admin.deleteUser(userId);
+    if (error) {
+      console.warn(JSON.stringify({
+        level: "warn",
+        msg: "petshop_self_delete.auth_delete_failed",
+        petshopId,
+        userId,
+        error: error.message,
+      }));
+    }
+  }
+
+  revalidatePath("/app");
+  return { ok: true };
+}

@@ -47,10 +47,11 @@ export default function PrivacidadePage() {
 
       <Section title="Compartilhamento">
         <p>
-          Não vendemos dados. Compartilhamos somente com fornecedores essenciais
-          (Supabase pra banco e armazenamento, Vercel pra hospedagem) sob
-          contrato com cláusulas de proteção de dados. Cada loja só vê os
-          dados da própria loja (isolamento total por tenant).
+          Não vendemos dados. Compartilhamos somente com fornecedores
+          essenciais à operação, hospedagem, segurança, atendimento, cobrança e
+          cumprimento de obrigações legais, sempre sob controles de proteção de
+          dados. Cada loja só vê os dados da própria loja (isolamento total por
+          tenant).
         </p>
       </Section>
 

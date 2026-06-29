@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SectionHeading } from "@/components/app/section-heading";
 import {
   completePetshopLogoUpload,
+  deleteOwnPetshopAccount,
   preparePetshopLogoUpload,
   removePetshopLogo,
   updatePetshopGeneral,
@@ -206,6 +207,32 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
     });
   }
 
+  function handleDeleteAccount() {
+    const confirmed = confirm(
+      "Excluir permanentemente esta conta? Isso apaga agenda, tutores, pets, equipe, financeiro, arquivos e configurações da loja. Não existe desfazer.",
+    );
+    if (!confirmed) return;
+
+    const typedSubdomain = prompt(
+      `Para confirmar, digite o subdomínio da loja: ${petshop.subdomain}`,
+    );
+    if (typedSubdomain === null) return;
+
+    startTransition(async () => {
+      const result = await deleteOwnPetshopAccount({
+        confirm_subdomain: typedSubdomain,
+      });
+
+      if (result.ok) {
+        toast.success("Conta excluída permanentemente.");
+        window.location.href = "/login?account-deleted=1";
+        return;
+      }
+
+      toast.error(result.error ?? "Não foi possível excluir a conta.");
+    });
+  }
+
   return (
     <div>
       <SectionHeading
@@ -366,6 +393,38 @@ export function ConfiguracoesView({ petshop, rootDomain }: Props) {
                   </Button>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-lg border-red-200 bg-red-50/60 shadow-none">
+            <CardContent className="space-y-4 p-5 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-red-950">
+                    Excluir conta da loja
+                  </p>
+                  <p className="max-w-2xl text-sm text-red-800">
+                    Apenas o dono da loja pode executar esta ação. Ela remove
+                    permanentemente agenda, tutores, pets, equipe, financeiro,
+                    arquivos, configurações e demais dados vinculados a esta
+                    conta.
+                  </p>
+                  <p className="text-xs font-medium text-red-700">
+                    Não existe recuperação depois da confirmação.
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={pending}
+                  onClick={handleDeleteAccount}
+                  className="shrink-0"
+                >
+                  <Trash2 className="size-4" />
+                  Excluir conta
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

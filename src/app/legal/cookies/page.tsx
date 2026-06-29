@@ -20,16 +20,15 @@ export default function CookiesPage() {
         <ul className="list-disc space-y-1 pl-5">
           <li>
             <strong>Sessão (essencial):</strong> mantém você logado no painel.
-            Cookies do Supabase Auth. Sem isso, não dá pra usar o sistema.
+            Cookies de autenticação. Sem isso, não dá pra usar o sistema.
           </li>
           <li>
             <strong>active_petshop_id (essencial):</strong> guarda qual loja
             está ativa quando o usuário tem múltiplas memberships.
           </li>
           <li>
-            <strong>Analytics (performance):</strong> Vercel Analytics e Speed
-            Insights coletam métricas anônimas de página e Core Web Vitals.
-            Não identificam o visitante.
+            <strong>Analytics (performance):</strong> métricas agregadas de
+            página e desempenho. Não identificam o visitante.
           </li>
         </ul>
       </Section>

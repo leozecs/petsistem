@@ -32,7 +32,7 @@ export default function TermosPage() {
           </li>
           <li>
             <strong>Planos pagos:</strong> mensalidade via Pix manual com
-            confirmação pelo Admin Master. Renovação no mesmo dia do mês
+            confirmação pelo administrador. Renovação no mesmo dia do mês
             subsequente.
           </li>
           <li>
@@ -46,9 +46,9 @@ export default function TermosPage() {
         <p>
           A loja é responsável pelos dados que insere, incluindo dados de
           tutores e pets. O PETSISTEM se compromete com infraestrutura segura
-          (Supabase + Vercel), backups e isolamento por tenant. Não
-          respondemos por perdas decorrentes de uso indevido, fraude ou
-          eventos fora do controle razoável da plataforma.
+          operada com controles de acesso, backups, monitoramento e isolamento
+          por tenant. Não respondemos por perdas decorrentes de uso indevido,
+          fraude ou eventos fora do controle razoável da plataforma.
         </p>
       </Section>
 
