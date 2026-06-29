@@ -49,3 +49,5 @@ next-env.d.ts
 # Python bytecode cache from local skills
 __pycache__/
 *.pyc
+
+.vs/

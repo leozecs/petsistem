@@ -5,7 +5,6 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { Bell, LogOut, Menu, ShieldCheck, Store } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -36,13 +35,6 @@ const knownPetshopLogos: Record<string, string> = {
   petgres: "/brand/petgres-logo.png",
 };
 
-function initials(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "PS";
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
-}
-
 function roleLabel(session: SessionContext, variant: ShellVariant): string {
   if (variant === "admin") return "Admin Master";
   const role = session.activeMembership?.role;
@@ -72,16 +64,17 @@ function PetshopBadge({ petshop }: { petshop: ActivePetshop | null | undefined }
       <Image
         src={logoUrl}
         alt={`Logo ${name}`}
-        width={40}
-        height={40}
-        className="size-10 shrink-0 rounded-md object-cover"
+        width={48}
+        height={48}
+        className="size-12 shrink-0 rounded-lg object-cover"
       />
     );
   }
 
+  // Sem logo: pawprint discreto em quadrado emerald — sem letras iniciais.
   return (
-    <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-zinc-950 text-xs font-bold text-white">
-      {name.slice(0, 2).toUpperCase()}
+    <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-emerald-800 text-[#f7f5ef]">
+      <Store className="size-5" strokeWidth={2.2} />
     </div>
   );
 }
@@ -90,11 +83,16 @@ function HeaderIdentity({ session, variant }: { session: SessionContext; variant
   if (variant === "admin") {
     return (
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-zinc-950 text-white">
-          <ShieldCheck className="size-4" />
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-white">
+          <ShieldCheck className="size-5" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-zinc-950">Admin Master</p>
+          <p
+            className="truncate text-[18px] font-semibold leading-tight tracking-tight text-zinc-950"
+            style={{ fontFamily: "var(--font-bricolage)" }}
+          >
+            Admin Master
+          </p>
           <p className="text-xs text-zinc-500">PETSISTEM</p>
         </div>
       </div>
@@ -107,7 +105,12 @@ function HeaderIdentity({ session, variant }: { session: SessionContext; variant
     <div className="flex min-w-0 items-center gap-3">
       <PetshopBadge petshop={petshop} />
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-zinc-950">{petshop?.name ?? "Loja"}</p>
+        <p
+          className="truncate text-[18px] font-semibold leading-tight tracking-tight text-zinc-950"
+          style={{ fontFamily: "var(--font-bricolage)" }}
+        >
+          {petshop?.name ?? "Loja"}
+        </p>
         <p className="flex items-center gap-1 text-xs text-zinc-500">
           <Store className="size-3" />
           {petshop?.planName ?? "Loja ativa"}
@@ -197,24 +200,43 @@ function SidebarContent({ session, variant }: { session: SessionContext; variant
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {nav.map((item) => {
-          const active = pathname === item.href;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-zinc-300 transition",
-                "hover:bg-white/10 hover:text-white",
-                active && "bg-white text-zinc-950 hover:bg-white hover:text-zinc-950",
-              )}
-            >
-              <Icon className="size-4" />
-              {item.label}
-            </Link>
-          );
-        })}
+        {(() => {
+          // Normaliza trailing slash e escolhe o item com o href mais longo que
+          // case com o pathname atual. Garante que só UM item fica ativo, e que
+          // /app/configuracoes/horarios ativa "Horários" (não "Configurações"
+          // ou "Dashboard").
+          const path = pathname.endsWith("/") && pathname !== "/"
+            ? pathname.slice(0, -1)
+            : pathname;
+          let activeHref: string | null = null;
+          let activeLen = -1;
+          for (const item of nav) {
+            const href = item.href;
+            const matches = path === href || path.startsWith(href + "/");
+            if (matches && href.length > activeLen) {
+              activeHref = href;
+              activeLen = href.length;
+            }
+          }
+          return nav.map((item) => {
+            const Icon = item.icon;
+            const active = item.href === activeHref;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-zinc-300 transition",
+                  "hover:bg-white/10 hover:text-white",
+                  active && "bg-white text-zinc-950 hover:bg-white hover:text-zinc-950",
+                )}
+              >
+                <Icon className="size-4" />
+                {item.label}
+              </Link>
+            );
+          });
+        })()}
       </nav>
 
       <SidebarFooter session={session} variant={variant} />
@@ -263,11 +285,6 @@ export function AppShell({
                   <Bell className="size-4" />
                   <span className="sr-only">Notificações</span>
                 </Button>
-                <Avatar className="size-9 rounded-md">
-                  <AvatarFallback className="rounded-md bg-zinc-950 text-xs text-white">
-                    {initials(session.user.fullName)}
-                  </AvatarFallback>
-                </Avatar>
               </div>
             </div>
           </header>
