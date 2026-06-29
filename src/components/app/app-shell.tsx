@@ -206,6 +206,9 @@ function SidebarContent({ session, variant, mobile = false, onNavigate }: { sess
               activeLen = href.length;
             }
           }
+          // layoutId único por instância (desktop vs mobile sheet) pra evitar
+          // conflito da animação shared layout quando ambos estão montados.
+          const indicatorId = `sidebar-active-${mobile ? "m" : "d"}`;
           return nav.map((item) => {
             const Icon = item.icon;
             const active = item.href === activeHref;
@@ -216,18 +219,37 @@ function SidebarContent({ session, variant, mobile = false, onNavigate }: { sess
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 text-sm font-medium transition",
+                  "relative flex items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors duration-200",
                   mobile ? "min-h-12 border" : "h-10",
                   lightNavigation
-                    ? "border-black/10 text-zinc-900 hover:bg-black/10 hover:text-black"
-                    : "border-white/10 text-zinc-200 hover:bg-white/10 hover:text-white",
-                  active && (lightNavigation
-                    ? "bg-zinc-950 text-white hover:bg-zinc-900 hover:text-white"
-                    : "bg-white text-zinc-950 hover:bg-white hover:text-zinc-950"),
+                    ? "border-black/10 hover:bg-black/10"
+                    : "border-white/10 hover:bg-white/10",
+                  active
+                    ? lightNavigation
+                      ? "text-white hover:text-white"
+                      : "text-zinc-950 hover:text-zinc-950"
+                    : lightNavigation
+                      ? "text-zinc-900 hover:text-black"
+                      : "text-zinc-200 hover:text-white",
                 )}
               >
-                <Icon className="size-4" />
-                {item.label}
+                {active ? (
+                  <motion.span
+                    layoutId={indicatorId}
+                    aria-hidden
+                    className={cn(
+                      "absolute inset-0 rounded-md",
+                      lightNavigation ? "bg-zinc-950" : "bg-white",
+                    )}
+                    transition={{
+                      type: "spring",
+                      stiffness: 380,
+                      damping: 32,
+                    }}
+                  />
+                ) : null}
+                <Icon className="relative size-4" />
+                <span className="relative">{item.label}</span>
               </Link>
             );
           });

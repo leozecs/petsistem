@@ -2,7 +2,27 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowUpRight,
+  MessageCircle,
 } from "lucide-react";
+
+function InstagramIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="2" y="2" width="20" height="20" rx="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  );
+}
 import { PetsistemLogo } from "@/components/brand/logo";
 import { PricingPlans, type MarketingPlan } from "@/components/marketing/pricing-plans";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -141,6 +161,9 @@ export default async function MarketingPage() {
             </Link>
             <Link href="#duvidas" className="transition hover:text-white">
               Dúvidas
+            </Link>
+            <Link href="#contato" className="transition hover:text-white">
+              Contato
             </Link>
           </nav>
           <div className="flex items-center gap-2">
@@ -545,29 +568,103 @@ export default async function MarketingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-200/70 bg-[#f7f5ef] py-10">
+      <footer id="contato" className="border-t border-zinc-200/70 bg-[#f7f5ef] py-12">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex h-7 w-32 items-center overflow-hidden">
-              <PetsistemLogo tone="dark" className="w-32" />
+          <div className="grid gap-10 sm:grid-cols-[1.2fr_1fr_1fr]">
+            <div>
+              <div className="flex h-7 w-32 items-center overflow-hidden">
+                <PetsistemLogo tone="dark" className="w-32" />
+              </div>
+              <p className="mt-3 max-w-xs text-[13px] leading-6 text-zinc-600">
+                Sistema operacional pra petshop e clínica veterinária no
+                Brasil. Agenda, painel, financeiro e prontuário num lugar só.
+              </p>
             </div>
-            <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-zinc-500">
-              <Link href="#rotina" className="hover:text-zinc-900">
-                Como funciona
-              </Link>
-              <Link href="#planos" className="hover:text-zinc-900">
-                Planos
-              </Link>
-              <Link href="#duvidas" className="hover:text-zinc-900">
-                Dúvidas
-              </Link>
-              <Link href="/login" className="hover:text-zinc-900">
-                Entrar
-              </Link>
-            </nav>
+
+            <div>
+              <p
+                className="text-[13px] font-semibold text-zinc-900"
+                style={{ fontFamily: "var(--font-bricolage)" }}
+              >
+                Navegação
+              </p>
+              <nav className="mt-3 flex flex-col gap-1.5 text-[13px] text-zinc-600">
+                <Link href="#rotina" className="hover:text-zinc-900">
+                  Como funciona
+                </Link>
+                <Link href="#planos" className="hover:text-zinc-900">
+                  Planos
+                </Link>
+                <Link href="#duvidas" className="hover:text-zinc-900">
+                  Dúvidas
+                </Link>
+                <Link href="/login" className="hover:text-zinc-900">
+                  Entrar
+                </Link>
+              </nav>
+            </div>
+
+            <div>
+              <p
+                className="text-[13px] font-semibold text-zinc-900"
+                style={{ fontFamily: "var(--font-bricolage)" }}
+              >
+                Contato
+              </p>
+              <div className="mt-3 flex flex-col gap-2.5 text-[13px] text-zinc-600">
+                <a
+                  href="https://wa.me/5511972871616?text=Oi!%20Quero%20saber%20mais%20do%20PETSISTEM"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 hover:text-emerald-800"
+                >
+                  <MessageCircle className="size-4" />
+                  (11) 97287-1616
+                </a>
+                <a
+                  href="https://instagram.com/petsistem_"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 hover:text-emerald-800"
+                >
+                  <InstagramIcon className="size-4" />
+                  @petsistem_
+                </a>
+              </div>
+
+              <p
+                className="mt-6 text-[13px] font-semibold text-zinc-900"
+                style={{ fontFamily: "var(--font-bricolage)" }}
+              >
+                Legal
+              </p>
+              <nav className="mt-3 flex flex-col gap-1.5 text-[12.5px] text-zinc-600">
+                <Link href="/legal/privacidade" className="hover:text-zinc-900">
+                  Política de Privacidade
+                </Link>
+                <Link href="/legal/termos" className="hover:text-zinc-900">
+                  Termos de Uso
+                </Link>
+                <Link href="/legal/cookies" className="hover:text-zinc-900">
+                  Política de Cookies
+                </Link>
+                <Link href="/legal/lgpd" className="hover:text-zinc-900">
+                  LGPD
+                </Link>
+              </nav>
+            </div>
+          </div>
+
+          <div className="mt-10 flex flex-col items-start justify-between gap-2 border-t border-zinc-200/70 pt-6 sm:flex-row sm:items-center">
             <p className="text-[12px] text-zinc-500">
-              © {new Date().getFullYear()} PETSISTEM
+              © {new Date().getFullYear()} PETSISTEM. Petshop e clínica veterinária no Brasil.
             </p>
+            <Link
+              href="#contato"
+              className="text-[12px] text-zinc-500 hover:text-zinc-900"
+            >
+              Voltar ao topo
+            </Link>
           </div>
         </div>
       </footer>
