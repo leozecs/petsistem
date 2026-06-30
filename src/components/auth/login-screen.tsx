@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { PawPrint } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/auth-actions";
 import { LoginSubmitButton } from "@/components/auth/login-submit-button";
 import { RateLimitBanner } from "@/components/auth/rate-limit-banner";
+import { PetsistemLogo } from "@/components/brand/logo";
 
 const errorMessages: Record<string, string> = {
   "invalid-credentials": "Email ou senha inválidos.",
@@ -36,38 +36,21 @@ export function LoginScreen({
 
   return (
     <main
-      className="grid min-h-[100dvh] bg-[#f7f5ef] text-zinc-950 lg:grid-cols-[1.1fr_1fr]"
+      className="grid min-h-[100dvh] bg-[#f7f5ef] text-zinc-950 lg:grid-cols-[1.08fr_1fr]"
       style={{ fontFamily: "var(--font-hanken), ui-sans-serif, system-ui" }}
     >
-      {/* FORMULÁRIO */}
       <section className="flex items-center px-5 py-10 sm:px-8 lg:px-16">
         <div className="mx-auto w-full max-w-md">
           <Link
             href="/"
-            className="mb-10 inline-flex items-center gap-2.5"
+            className="mb-11 inline-flex"
             aria-label="Voltar para PETSISTEM"
           >
-            <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-800 text-[#f7f5ef]">
-              <PawPrint className="size-4" strokeWidth={2.2} />
-            </div>
-            <span
-              className="text-[15px] font-semibold tracking-tight text-zinc-900"
-              style={{ fontFamily: "var(--font-bricolage)" }}
-            >
-              PETSISTEM
-            </span>
+            <PetsistemLogo tone="dark" className="w-40" priority />
           </Link>
 
-          <p
-            className="inline-flex items-center gap-2 rounded-full border border-emerald-800/15 bg-emerald-800/[0.06] px-3 py-1 text-[11px] font-medium text-emerald-900"
-            style={{ fontFamily: "var(--font-hanken)" }}
-          >
-            <span className="size-1.5 rounded-full bg-emerald-800" />
-            Acesso interno
-          </p>
-
           <h1
-            className="mt-5 text-[2.25rem] font-medium leading-[1.05] tracking-[-0.025em] text-zinc-950 sm:text-[2.75rem]"
+            className="text-[2.25rem] font-medium leading-[1.08] text-zinc-950 sm:text-[2.75rem]"
             style={{
               fontFamily: "var(--font-bricolage)",
               fontVariationSettings: "'wdth' 90",
@@ -76,7 +59,7 @@ export function LoginScreen({
             Entrar no
             <br />
             <span
-              className="italic text-emerald-800"
+              className="italic text-zinc-950"
               style={{ fontVariationSettings: "'wdth' 78" }}
             >
               PETSISTEM.
@@ -114,7 +97,7 @@ export function LoginScreen({
                   type="email"
                   autoComplete="email"
                   placeholder="seu@email.com"
-                  className="h-12 rounded-lg border-zinc-300 bg-white px-4 text-[15px] shadow-sm focus-visible:border-emerald-700 focus-visible:ring-emerald-700/15"
+                  className="h-12 rounded-lg border-zinc-300 bg-white px-4 text-[15px] shadow-sm focus-visible:border-zinc-950 focus-visible:ring-zinc-950/15"
                   required
                 />
               </div>
@@ -131,68 +114,68 @@ export function LoginScreen({
                   type="password"
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="h-12 rounded-lg border-zinc-300 bg-white px-4 text-[15px] shadow-sm focus-visible:border-emerald-700 focus-visible:ring-emerald-700/15"
+                  className="h-12 rounded-lg border-zinc-300 bg-white px-4 text-[15px] shadow-sm focus-visible:border-zinc-950 focus-visible:ring-zinc-950/15"
                   required
                 />
               </div>
               <LoginSubmitButton />
             </fieldset>
           </form>
-
         </div>
       </section>
 
-      {/* PAINEL DA MARCA */}
-      <section className="relative hidden overflow-hidden bg-emerald-800 text-[#f7f5ef] lg:block">
+      <section className="relative hidden overflow-hidden bg-zinc-950 text-white lg:block">
         <div
           aria-hidden
-          className="pointer-events-none absolute -left-24 -top-24 h-[360px] w-[360px] rounded-full bg-emerald-700/40 blur-[80px]"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:96px_96px] opacity-30"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-32 bottom-0 h-[420px] w-[420px] rounded-full bg-emerald-900/50 blur-[100px]"
+          className="pointer-events-none absolute left-14 top-0 h-full w-px bg-white/15"
         />
 
         <div className="relative flex h-full min-h-[100dvh] flex-col justify-between p-14">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-[#f7f5ef]/15 text-[#f7f5ef]">
-              <PawPrint className="size-4" strokeWidth={2.2} />
-            </div>
-            <span
-              className="text-[15px] font-semibold tracking-tight text-[#f7f5ef]"
-              style={{ fontFamily: "var(--font-bricolage)" }}
-            >
-              PETSISTEM
-            </span>
-            <span className="ml-1 rounded-full border border-emerald-100/30 bg-emerald-100/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-100">
-              Painel
+          <div className="flex justify-end">
+            <span className="border border-white/25 px-3 py-1 text-[11px] font-semibold uppercase text-white/80">
+              Sistema operacional
             </span>
           </div>
 
-          <div className="max-w-md space-y-7">
+          <div className="max-w-lg space-y-8">
             <p
-              className="text-[2.5rem] font-medium leading-[1.05] tracking-[-0.02em]"
+              className="text-[3rem] font-medium leading-[1.02] sm:text-[3.4rem]"
               style={{
                 fontFamily: "var(--font-bricolage)",
                 fontVariationSettings: "'wdth' 85",
               }}
             >
-              O dia do seu petshop{" "}
+              Gestão do petshop, agenda e clínica{" "}
               <span
-                className="italic text-emerald-200"
+                className="italic text-white/70"
                 style={{ fontVariationSettings: "'wdth' 78" }}
               >
-                resolvido aqui dentro.
+                num só painel.
               </span>
             </p>
-            <p className="max-w-sm text-[15px] leading-6 text-emerald-100/85">
-              Agenda online, painel pra equipe, prontuário do veterinário e
-              caixa do dia somando sozinho. Tudo num lugar só.
+            <p className="max-w-md text-[16px] leading-7 text-white/72">
+              O PETSISTEM reúne agendamentos, equipe, clientes, pets,
+              prontuário veterinário e rotina financeira para a loja operar com
+              menos retrabalho.
             </p>
+            <div className="grid max-w-md grid-cols-3 border-y border-white/18 text-white">
+              {["Agenda", "Prontuário", "Caixa"].map((item) => (
+                <div
+                  key={item}
+                  className="border-r border-white/18 px-4 py-4 text-[12px] font-semibold uppercase last:border-r-0"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 text-[12px] text-emerald-100/70">
-            <span className="h-px w-8 bg-emerald-300/40" />
+          <div className="flex items-center gap-2 text-[12px] text-white/58">
+            <span className="h-px w-8 bg-white/35" />
             Petshop e clínica veterinária, no Brasil.
           </div>
         </div>
