@@ -1,10 +1,10 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/auth-actions";
 import { LoginSubmitButton } from "@/components/auth/login-submit-button";
 import { RateLimitBanner } from "@/components/auth/rate-limit-banner";
-import { PetsistemLogo } from "@/components/brand/logo";
 
 const errorMessages: Record<string, string> = {
   "invalid-credentials": "Email ou senha inválidos.",
@@ -12,7 +12,7 @@ const errorMessages: Record<string, string> = {
   "supabase-not-configured": "Supabase não está configurado neste ambiente.",
   "profile-missing": "Sessão criada, mas o perfil não foi encontrado no banco.",
   "no-tenant": "Seu usuário não está vinculado a nenhuma loja ativa.",
-  "tenant-blocked": "Sua loja está bloqueada. Procure o Admin Master.",
+  "tenant-blocked": "Sua loja está bloqueada. Procure o suporte do PETSISTEM.",
   "session-required": "Faça login para continuar.",
   "not-authorized": "Você não tem permissão para acessar essa área.",
   "email-not-confirmed":
@@ -36,21 +36,53 @@ export function LoginScreen({
 
   return (
     <main
-      className="grid min-h-[100dvh] bg-[#f7f5ef] text-zinc-950 lg:grid-cols-[1.08fr_1fr]"
+      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-white px-5 py-10 text-zinc-950"
       style={{ fontFamily: "var(--font-hanken), ui-sans-serif, system-ui" }}
     >
-      <section className="flex items-center px-5 py-10 sm:px-8 lg:px-16">
-        <div className="mx-auto w-full max-w-md">
-          <Link
-            href="/"
-            className="mb-11 inline-flex"
-            aria-label="Voltar para PETSISTEM"
-          >
-            <PetsistemLogo tone="dark" className="w-40" priority />
-          </Link>
+      <div aria-hidden className="absolute inset-y-0 left-0 w-1/2 bg-white" />
+      <div aria-hidden className="absolute inset-y-0 right-0 w-1/2 bg-zinc-950" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-1/2 w-16 -translate-x-1/2 bg-gradient-to-r from-white via-white/35 to-transparent"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-1/2 w-16 bg-gradient-to-r from-transparent via-zinc-950/35 to-zinc-950"
+      />
 
+      <section className="relative z-10 w-full max-w-md">
+        <Link
+          href="/"
+          className="relative mx-auto mb-9 block h-11 w-64"
+          aria-label="Voltar para PETSISTEM"
+        >
+          <span className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
+            <Image
+              src="/brand/petsistem-logo-dark.png"
+              alt="PETSISTEM"
+              width={208}
+              height={46}
+              priority
+              sizes="208px"
+              className="absolute left-12 top-1/2 h-auto w-52 max-w-none -translate-y-1/2"
+            />
+          </span>
+          <span className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
+            <Image
+              src="/brand/petsistem-logo-light.png"
+              alt=""
+              width={208}
+              height={46}
+              priority
+              sizes="208px"
+              className="absolute left-[-80px] top-1/2 h-auto w-52 max-w-none -translate-y-1/2"
+            />
+          </span>
+        </Link>
+
+        <div className="rounded-lg border border-zinc-200 bg-[#f7f5ef] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.18)] sm:p-8">
           <h1
-            className="text-[2.25rem] font-medium leading-[1.08] text-zinc-950 sm:text-[2.75rem]"
+            className="text-[2.2rem] font-medium leading-[1.08] text-zinc-950"
             style={{
               fontFamily: "var(--font-bricolage)",
               fontVariationSettings: "'wdth' 90",
@@ -66,9 +98,9 @@ export function LoginScreen({
             </span>
           </h1>
 
-          <p className="mt-4 max-w-sm text-[15px] leading-6 text-zinc-700">
-            Use seu acesso de Admin Master, dono, atendente ou veterinário pra
-            entrar no painel da sua loja.
+          <p className="mt-4 text-[15px] leading-6 text-zinc-700">
+            Use seu acesso de dono de pet, atendente ou veterinária para entrar
+            no painel da sua loja.
           </p>
 
           {errorMessage ? (
@@ -88,7 +120,10 @@ export function LoginScreen({
               className="space-y-4 disabled:opacity-60"
             >
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-[13px] font-medium text-zinc-800">
+                <Label
+                  htmlFor="email"
+                  className="text-[13px] font-medium text-zinc-800"
+                >
                   Email
                 </Label>
                 <Input
@@ -121,63 +156,6 @@ export function LoginScreen({
               <LoginSubmitButton />
             </fieldset>
           </form>
-        </div>
-      </section>
-
-      <section className="relative hidden overflow-hidden bg-zinc-950 text-white lg:block">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:96px_96px] opacity-30"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute left-14 top-0 h-full w-px bg-white/15"
-        />
-
-        <div className="relative flex h-full min-h-[100dvh] flex-col justify-between p-14">
-          <div className="flex justify-end">
-            <span className="border border-white/25 px-3 py-1 text-[11px] font-semibold uppercase text-white/80">
-              Sistema operacional
-            </span>
-          </div>
-
-          <div className="max-w-lg space-y-8">
-            <p
-              className="text-[3rem] font-medium leading-[1.02] sm:text-[3.4rem]"
-              style={{
-                fontFamily: "var(--font-bricolage)",
-                fontVariationSettings: "'wdth' 85",
-              }}
-            >
-              Gestão do petshop, agenda e clínica{" "}
-              <span
-                className="italic text-white/70"
-                style={{ fontVariationSettings: "'wdth' 78" }}
-              >
-                num só painel.
-              </span>
-            </p>
-            <p className="max-w-md text-[16px] leading-7 text-white/72">
-              O PETSISTEM reúne agendamentos, equipe, clientes, pets,
-              prontuário veterinário e rotina financeira para a loja operar com
-              menos retrabalho.
-            </p>
-            <div className="grid max-w-md grid-cols-3 border-y border-white/18 text-white">
-              {["Agenda", "Prontuário", "Caixa"].map((item) => (
-                <div
-                  key={item}
-                  className="border-r border-white/18 px-4 py-4 text-[12px] font-semibold uppercase last:border-r-0"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 text-[12px] text-white/58">
-            <span className="h-px w-8 bg-white/35" />
-            Petshop e clínica veterinária, no Brasil.
-          </div>
         </div>
       </section>
     </main>
