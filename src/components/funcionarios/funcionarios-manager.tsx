@@ -39,13 +39,6 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -574,21 +567,42 @@ export function FuncionariosManager({
             className="grid gap-4 sm:grid-cols-2"
           >
             <div className="space-y-2 sm:col-span-2">
-              <Label>Perfil</Label>
-              <Select
-                value={createProfile}
-                onValueChange={(value) =>
-                  createForm.setValue("profile", value as TeamProfile, { shouldValidate: true })
-                }
-              >
-                <SelectTrigger className="rounded-md">
-                  <SelectValue placeholder="Perfil" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="attendant">Atendente</SelectItem>
-                  <SelectItem value="veterinarian">Veterinário</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Tipo de perfil</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { value: "attendant" as const, label: "Atendente", hint: "Banho e tosa" },
+                    { value: "veterinarian" as const, label: "Veterinário(a)", hint: "Consultas clínicas" },
+                  ]
+                ).map((opt) => {
+                  const active = createProfile === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() =>
+                        createForm.setValue("profile", opt.value, { shouldValidate: true })
+                      }
+                      className={
+                        "flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left transition " +
+                        (active
+                          ? "border-zinc-950 bg-zinc-950 text-white"
+                          : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400")
+                      }
+                    >
+                      <span className="text-sm font-semibold">{opt.label}</span>
+                      <span
+                        className={
+                          "text-[0.6875rem] " +
+                          (active ? "text-zinc-300" : "text-zinc-500")
+                        }
+                      >
+                        {opt.hint}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="space-y-2 sm:col-span-2">
