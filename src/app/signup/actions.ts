@@ -286,6 +286,7 @@ export async function signupTenant(formData: FormData): Promise<SignupResult> {
       due_date: dueDate.toISOString().slice(0, 10),
       status: paidSignup ? "confirming" : "pending",
       pix_key: paidSignup ? OFFICIAL_PIX_KEY : null,
+      billing_cycle: parsed.data.billing,
       created_by: ownerId,
     })
     .select("id")
@@ -305,6 +306,7 @@ export async function signupTenant(formData: FormData): Promise<SignupResult> {
       subscription_id: subscription.id,
       amount_cents: paidAmountCents,
       status: "confirming",
+      billing_cycle: parsed.data.billing,
       created_by: ownerId,
     });
     if (paymentError) {

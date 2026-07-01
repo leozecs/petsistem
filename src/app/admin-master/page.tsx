@@ -3,10 +3,10 @@ import Link from "next/link";
 import {
   ArrowRight,
   Ban,
-  CalendarCheck,
   CheckCircle2,
   Store,
-  Users,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeading } from "@/components/app/section-heading";
@@ -48,6 +48,13 @@ const BR_DATE = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
 });
 
+function formatBRL(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
 export default async function AdminMasterPage() {
   const session = await getSession();
   if (!session || session.user.globalRole !== "admin_master") {
@@ -63,20 +70,16 @@ export default async function AdminMasterPage() {
   }
 
   const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  // Janela pra MRR: pagamentos mensais nos últimos 35 dias, anuais nos últimos
+  // 370 dias. Anual entra dividido por 12 pra virar contribuição mensal
+  // recorrente equivalente.
+  const mrrMonthlyCutoff = new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000);
+  const mrrAnnualCutoff = new Date(now.getTime() - 370 * 24 * 60 * 60 * 1000);
 
-  const [shopsRes, usersRes, apptRes, recentRes] = await Promise.all([
-    admin.from("petshops").select("status").is("deleted_at", null),
+  const [shopsRes, recentRes, totalRevRes, mrrPayRes] = await Promise.all([
     admin
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null),
-    admin
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .gte("starts_at", monthStart.toISOString())
-      .lt("starts_at", monthEnd.toISOString())
+      .from("petshops")
+      .select("id, status")
       .is("deleted_at", null),
     admin
       .from("petshops")
@@ -84,16 +87,62 @@ export default async function AdminMasterPage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(10),
+    // Faturamento Total = soma cumulativa de todos os pagamentos confirmados.
+    admin
+      .from("payments")
+      .select("amount_cents")
+      .eq("status", "paid")
+      .is("deleted_at", null),
+    // MRR: pega pagamentos confirmados dos últimos 370 dias e reduz pra 1 por
+    // petshop (o mais recente). Anuais entram divididos por 12.
+    admin
+      .from("payments")
+      .select("petshop_id, amount_cents, billing_cycle, paid_at")
+      .eq("status", "paid")
+      .is("deleted_at", null)
+      .gte("paid_at", mrrAnnualCutoff.toISOString())
+      .not("paid_at", "is", null)
+      .order("paid_at", { ascending: false }),
   ]);
 
-  type ShopStat = { status: PetshopStatus };
-  const shops = (shopsRes.data ?? []) as ShopStat[];
+  type ShopRow = { id: string; status: PetshopStatus };
+  const shops = (shopsRes.data ?? []) as ShopRow[];
   const totalShops = shops.length;
   const activeShops = shops.filter((s) => s.status === "active").length;
   const blockedShops = shops.filter((s) => s.status === "blocked").length;
 
-  const totalUsers = usersRes.count ?? 0;
-  const monthAppts = apptRes.count ?? 0;
+  const totalRevenueCents = (totalRevRes.data ?? []).reduce(
+    (sum, row) => sum + (row.amount_cents ?? 0),
+    0,
+  );
+
+  const mrrContributingIds = new Set(
+    shops
+      .filter((s) => s.status === "active" || s.status === "trial")
+      .map((s) => s.id),
+  );
+  const latestByShop = new Map<
+    string,
+    { amount: number; cycle: "monthly" | "annual"; paidAt: Date }
+  >();
+  for (const row of mrrPayRes.data ?? []) {
+    const shopId = row.petshop_id as string | null;
+    if (!shopId || !mrrContributingIds.has(shopId)) continue;
+    if (latestByShop.has(shopId)) continue;
+    latestByShop.set(shopId, {
+      amount: row.amount_cents ?? 0,
+      cycle: row.billing_cycle === "annual" ? "annual" : "monthly",
+      paidAt: new Date(row.paid_at as string),
+    });
+  }
+  let mrrCents = 0;
+  for (const entry of latestByShop.values()) {
+    if (entry.cycle === "monthly" && entry.paidAt >= mrrMonthlyCutoff) {
+      mrrCents += entry.amount;
+    } else if (entry.cycle === "annual" && entry.paidAt >= mrrAnnualCutoff) {
+      mrrCents += Math.round(entry.amount / 12);
+    }
+  }
 
   const recent = recentRes.data ?? [];
 
@@ -101,10 +150,38 @@ export default async function AdminMasterPage() {
     <div>
       <SectionHeading
         title="Visão geral"
-        description="Snapshot da plataforma toda: lojas ativas, usuários e agendamentos do mês."
+        description="Snapshot da plataforma toda: faturamento, MRR e status das lojas."
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="rounded-lg border-emerald-200 bg-emerald-50/40 shadow-none">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-emerald-800">
+              <Wallet className="size-4 text-emerald-700" />
+              Faturamento total
+            </div>
+            <p className="mt-2 text-2xl font-semibold text-zinc-950">
+              {formatBRL(totalRevenueCents)}
+            </p>
+            <p className="text-xs text-emerald-800/70">
+              Cumulativo desde o início — inclui anuais e mensais.
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="rounded-lg border-sky-200 bg-sky-50/40 shadow-none">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-sky-800">
+              <TrendingUp className="size-4 text-sky-700" />
+              MRR
+            </div>
+            <p className="mt-2 text-2xl font-semibold text-zinc-950">
+              {formatBRL(mrrCents)}
+            </p>
+            <p className="text-xs text-sky-800/70">
+              Recorrente mensal (anual ÷ 12) · {latestByShop.size} loja(s) contribuindo
+            </p>
+          </CardContent>
+        </Card>
         <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
@@ -112,6 +189,7 @@ export default async function AdminMasterPage() {
               Lojas totais
             </div>
             <p className="mt-2 text-2xl font-semibold text-zinc-950">{totalShops}</p>
+            <p className="text-xs text-zinc-500">{blockedShops} bloqueadas</p>
           </CardContent>
         </Card>
         <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
@@ -121,27 +199,7 @@ export default async function AdminMasterPage() {
               Ativas
             </div>
             <p className="mt-2 text-2xl font-semibold text-zinc-950">{activeShops}</p>
-            <p className="text-xs text-zinc-500">{blockedShops} bloqueadas</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
-              <Users className="size-4 text-zinc-700" />
-              Usuários totais
-            </div>
-            <p className="mt-2 text-2xl font-semibold text-zinc-950">{totalUsers}</p>
-            <p className="text-xs text-zinc-500">Inclui Admin Master + tenants</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-lg border-zinc-200 bg-white shadow-none">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
-              <CalendarCheck className="size-4 text-zinc-700" />
-              Agend. neste mês
-            </div>
-            <p className="mt-2 text-2xl font-semibold text-zinc-950">{monthAppts}</p>
-            <p className="text-xs text-zinc-500">Todas as lojas</p>
+            <p className="text-xs text-zinc-500">Pagando e operando</p>
           </CardContent>
         </Card>
       </div>

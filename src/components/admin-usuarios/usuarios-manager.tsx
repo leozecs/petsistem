@@ -42,6 +42,7 @@ import {
   getUserMemberships,
   resetUserPassword,
   setMembershipStatus,
+  updateMembershipRole,
   type MembershipDetail,
 } from "@/app/admin-master/usuarios/actions";
 
@@ -70,9 +71,15 @@ const BR_DATE = new Intl.DateTimeFormat("pt-BR", {
 const ROLE_LABEL: Record<string, string> = {
   owner: "Dono",
   attendant: "Atendente",
-  veterinarian: "Vet",
+  veterinarian: "Veterinário(a)",
   admin_master: "Admin Master",
 };
+
+const EDITABLE_ROLES = [
+  { value: "owner", label: "Dono" },
+  { value: "attendant", label: "Atendente" },
+  { value: "veterinarian", label: "Veterinário(a)" },
+] as const;
 
 export function UsuariosManager({
   users,
@@ -188,6 +195,23 @@ export function UsuariosManager({
     });
   }
 
+  function handleChangeRole(m: MembershipDetail, next: "owner" | "attendant" | "veterinarian") {
+    if (m.role === next) return;
+    startTransition(async () => {
+      const result = await updateMembershipRole(m.membershipId, next);
+      if (result.ok) {
+        toast.success("Tipo de perfil atualizado");
+        if (drawerUser) {
+          const res = await getUserMemberships(drawerUser.id);
+          if (res.ok) setMemberships(res.data);
+        }
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Erro ao alterar tipo de perfil");
+      }
+    });
+  }
+
   function toggleMembership(m: MembershipDetail) {
     const next = m.status === "active" ? "blocked" : "active";
     const label = next === "blocked" ? "Bloquear" : "Reativar";
@@ -268,7 +292,7 @@ export function UsuariosManager({
                     <TableHead>Nome</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Memberships</TableHead>
-                    <TableHead>Role global</TableHead>
+                    <TableHead>Tipo global</TableHead>
                     <TableHead>Criado em</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -376,9 +400,28 @@ export function UsuariosManager({
                             {m.petshopSubdomain}
                           </p>
                         </div>
-                        <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[0.625rem] font-medium text-zinc-700">
-                          {ROLE_LABEL[m.role] ?? m.role}
-                        </span>
+                        <select
+                          value={m.role}
+                          onChange={(e) =>
+                            handleChangeRole(
+                              m,
+                              e.target.value as "owner" | "attendant" | "veterinarian",
+                            )
+                          }
+                          disabled={pending || m.role === "admin_master"}
+                          className="h-7 rounded-md border border-zinc-200 bg-white px-1.5 text-[0.6875rem] font-medium text-zinc-700 hover:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 disabled:opacity-60"
+                          title="Alterar tipo de perfil"
+                        >
+                          {m.role === "admin_master" ? (
+                            <option value="admin_master">Admin Master</option>
+                          ) : (
+                            EDITABLE_ROLES.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))
+                          )}
+                        </select>
                         <StatusPill tone={m.status === "active" ? "success" : "danger"}>
                           {m.status === "active" ? "Ativa" : "Bloqueada"}
                         </StatusPill>

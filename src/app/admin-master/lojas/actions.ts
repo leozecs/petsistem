@@ -433,6 +433,18 @@ export async function permanentlyDeletePetshop(input: {
     };
   }
 
+  // 0) Colhe user_ids ligados via memberships. Depois de deletar a loja, esses
+  // usuários viram órfãos se não tiverem outras memberships — então marcamos
+  // pra deletar o auth user também (Leonardo: "cliente cadastra 1 dono, apaga
+  // tudo inclusive login").
+  const { data: shopMemberships } = await admin
+    .from("memberships")
+    .select("user_id")
+    .eq("petshop_id", parsed.data.id);
+  const memberUserIds = Array.from(
+    new Set((shopMemberships ?? []).map((m) => m.user_id).filter(Boolean)),
+  ) as string[];
+
   // 1) Limpa storage: appointment-photos/<id>/...
   // List + remove recursivo. supabase storage `list` retorna 100 por página.
   async function purgeBucketPrefix(bucket: string, prefix: string) {
@@ -463,8 +475,56 @@ export async function permanentlyDeletePetshop(input: {
     .eq("id", parsed.data.id);
   if (delErr) return { ok: false, error: delErr.message };
 
+  // 3) Pra cada user que era membro dessa loja, ver se sobrou algum outro
+  // vínculo ativo (outra membership, ou role global admin_master). Se não,
+  // deleta o auth user + linha em public.users pra não sobrar lixo.
+  for (const uid of memberUserIds) {
+    const { data: userProfile } = await admin
+      .from("users")
+      .select("global_role")
+      .eq("id", uid)
+      .maybeSingle();
+    if (userProfile?.global_role === "admin_master") continue;
+
+    const { count: remaining } = await admin
+      .from("memberships")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", uid)
+      .is("deleted_at", null);
+    if ((remaining ?? 0) > 0) continue;
+
+    await admin
+      .from("users")
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: guard.userId,
+        updated_by: guard.userId,
+      })
+      .eq("id", uid)
+      .is("deleted_at", null);
+    try {
+      await admin.auth.admin.deleteUser(uid);
+    } catch (err) {
+      console.error(`[lojas.delete] falha ao deletar auth user ${uid}:`, err);
+    }
+  }
+
+  await admin.from("audit_logs").insert({
+    petshop_id: null,
+    actor_id: guard.userId,
+    action: "petshop.hard_delete",
+    entity_table: "petshops",
+    entity_id: parsed.data.id,
+    metadata: {
+      slug: shop.slug,
+      name: shop.name,
+      purged_user_ids: memberUserIds,
+    },
+  });
+
   revalidatePath("/admin-master/lojas");
   revalidatePath("/admin-master");
+  revalidatePath("/admin-master/usuarios");
   return { ok: true };
 }
 

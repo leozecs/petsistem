@@ -188,6 +188,72 @@ export async function deleteUser(userId: string): Promise<ActionState> {
 // and blocked in another.
 // ---------------------------------------------------------------------------
 
+const roleSchema = z.object({
+  membershipId: z.string().uuid(),
+  role: z.enum(["owner", "attendant", "veterinarian"] as const),
+});
+
+/**
+ * Muda o member_role de uma membership. Admin Master apenas — nunca promove a
+ * `admin_master` (esse é global_role, controlado noutro lugar). Se troca pra
+ * owner, aceita coexistência com owner atual — Leonardo confirmou que "só tem
+ * um dono na teoria" mas não vamos travar hard aqui.
+ *
+ * Ao trocar entre attendant e veterinarian, sincroniza o employees.role
+ * correspondente (se existir) pra manter as duas tabelas coerentes.
+ */
+export async function updateMembershipRole(
+  membershipId: string,
+  role: "owner" | "attendant" | "veterinarian",
+): Promise<ActionState> {
+  const me = await requireAdminMaster();
+  if (!me) return { ok: false, error: "Apenas Admin Master." };
+  const parsed = roleSchema.safeParse({ membershipId, role });
+  if (!parsed.success) return { ok: false, error: "Dados inválidos." };
+
+  const admin = createAdminClient();
+  if (!admin) return { ok: false, error: "Service role indisponível." };
+
+  const { data: current } = await admin
+    .from("memberships")
+    .select("id, petshop_id, user_id, role")
+    .eq("id", parsed.data.membershipId)
+    .maybeSingle();
+  if (!current) return { ok: false, error: "Membership não encontrada." };
+  if (current.role === parsed.data.role) return { ok: true };
+
+  const { error } = await admin
+    .from("memberships")
+    .update({ role: parsed.data.role, updated_by: me.id })
+    .eq("id", parsed.data.membershipId);
+  if (error) return { ok: false, error: error.message };
+
+  // Sincroniza employees.role se existir vínculo com esse user na loja.
+  if (parsed.data.role !== "owner" && current.user_id) {
+    await admin
+      .from("employees")
+      .update({ role: parsed.data.role, updated_by: me.id })
+      .eq("petshop_id", current.petshop_id)
+      .eq("user_id", current.user_id);
+  }
+
+  await admin.from("audit_logs").insert({
+    petshop_id: current.petshop_id,
+    actor_id: me.id,
+    action: "membership.role_changed",
+    entity_table: "memberships",
+    entity_id: current.id,
+    metadata: {
+      from: current.role,
+      to: parsed.data.role,
+      user_id: current.user_id,
+    },
+  });
+
+  revalidatePath("/admin-master/usuarios");
+  return { ok: true };
+}
+
 const statusSchema = z.object({
   membershipId: z.string().uuid(),
   status: z.enum(["active", "blocked"] as const),

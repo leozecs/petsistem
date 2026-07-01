@@ -1,6 +1,5 @@
 import {
   Activity,
-  Bell,
   CalendarCheck,
   CalendarRange,
   CreditCard,
@@ -30,7 +29,6 @@ export const adminMasterNav: NavItem[] = [
   { href: "/admin-master/lojas", label: "Lojas", icon: Store },
   { href: "/admin-master/planos", label: "Planos", icon: CreditCard },
   { href: "/admin-master/assinaturas", label: "Assinaturas", icon: FileBarChart },
-  { href: "/admin-master/cobrancas", label: "Cobranças", icon: Bell },
   { href: "/admin-master/usuarios", label: "Usuários", icon: Users },
   { href: "/admin-master/configuracoes", label: "Configurações", icon: Settings },
 ];
